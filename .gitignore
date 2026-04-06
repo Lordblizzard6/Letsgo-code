@@ -1,0 +1,37 @@
+```
+# Dependencies
+vendor/
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
+*.o
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# System
+.DS_Store
+Thumbs.db
+```

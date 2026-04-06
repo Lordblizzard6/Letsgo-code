@@ -1,0 +1,21 @@
+# Configuración de MyCLI
+
+# Proveedor de LLM (openai, anthropic, gemini)
+provider:
+  name: anthropic
+  api_key: ""  # O usar variable de entorno ANTHROPIC_API_KEY
+  model: claude-sonnet-4-20250514
+  base_url: ""  # Solo para OpenAI custom o OpenRouter
+  temperature: 0.7
+  max_tokens: 4096
+
+# Configuración del agente
+agent:
+  max_iterations: 10
+  system_prompt: ""  # Dejar vacío usa el prompt por defecto
+
+# Configuración de herramientas
+tools:
+  require_confirmation: true
+  allowed_commands: []  # Lista vacía = todos los comandos no peligrosos
+  working_directory: ""  # Dejar vacío usa el directorio actual
