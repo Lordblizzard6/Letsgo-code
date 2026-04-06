@@ -1,37 +1,64 @@
 ```
-# Dependencies
-vendor/
-
-# Build artifacts
+# Go binaries
 *.exe
 *.dll
 *.so
 *.a
-*.obj
-*.out
 *.o
+*.out
+*.test
+
+# Go build artifacts
+bin/
+pkg/
+*.mod
+*.sum
+
+# Dependencies
+vendor/
+
+# Logs and temp files
+*.log
+*.tmp
 
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 
-# Logs
-*.log
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
 
 # Coverage
 coverage/
 htmlcov/
 .coverage
 
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
+# Build directories
+build/
+dist/
+target/
 
-# System
-.DS_Store
-Thumbs.db
+# Python related (if mixed project)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
 ```
