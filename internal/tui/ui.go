@@ -91,18 +91,18 @@ func NewModel() model {
 	vp.SetContent("")
 
 	m := model{
-		sessionID:       sessionID,
-		messages:        []api.Message{},
-		client:          createClientForCurrentModel(),
-		toolInputs:      make(map[string]string),
-		spinner:         s,
-		renderer:        r,
-		currentMode:     chatMode,
-		viewport:        vp,
-		inputHistory:    []string{},
-		historyIndex:    -1,
-		suggestions:     []string{},
-		showSuggestions: false,
+		sessionID:        sessionID,
+		messages:         []api.Message{},
+		client:           createClientForCurrentModel(),
+		toolInputs:       make(map[string]string),
+		spinner:          s,
+		renderer:         r,
+		currentMode:      chatMode,
+		viewport:         vp,
+		inputHistory:     []string{},
+		historyIndex:     -1,
+		suggestions:      []string{},
+		showSuggestions:  false,
 		selectedProvider: 0,
 		selectedModel:    0,
 		inModelMenu:      false,
@@ -308,6 +308,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Process slash commands
 				if strings.HasPrefix(input, "/") {
+					SetSlashCommandSessionID(m.sessionID)
 					response, shouldContinue, shouldQuit := ProcessSlashCommand(input)
 					if shouldQuit {
 						return m, tea.Quit
@@ -455,11 +456,11 @@ func getModelCountForProvider(providerIdx int) int {
 // getModelID retorna el ID del modelo según proveedor e índice
 func getModelID(providerIdx, modelIdx int) string {
 	models := [][]string{
-		{"claude-sonnet-4-20250514", "claude-3-opus-20240229"},                    // Anthropic
-		{"gpt-4o", "gpt-4o-mini"},                                                  // OpenAI
+		{"claude-sonnet-4-20250514", "claude-3-opus-20240229"}, // Anthropic
+		{"gpt-4o", "gpt-4o-mini"},                              // OpenAI
 		{"llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b", "openai/gpt-oss-20b"}, // Groq
-		{"anthropic/claude-sonnet-4", "openai/gpt-4o", "meta-llama/llama-3.3-70b-instruct"}, // OpenRouter
-		{"llama3.2", "codellama"},                                                  // Ollama
+		{"anthropic/claude-sonnet-4", "openai/gpt-4o", "meta-llama/llama-3.3-70b-instruct"},              // OpenRouter
+		{"llama3.2", "codellama"}, // Ollama
 	}
 	if providerIdx >= 0 && providerIdx < len(models) {
 		if modelIdx >= 0 && modelIdx < len(models[providerIdx]) {
@@ -509,24 +510,24 @@ func (m model) renderSettingsView() string {
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFDF5")).Background(lipgloss.Color("62")).Padding(0, 2)
 	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
 	sectionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true)
-	
+
 	// Colores por proveedor
 	providerColors := []string{"141", "45", "208", "214", "120"} // Morado, Azul, Naranja, Amarillo, Verde
 	providerNames := []string{"Anthropic", "OpenAI", "Groq", "OpenRouter", "Ollama"}
 	providerIcons := []string{"◉", "◉", "◉", "◉", "◉"}
-	
+
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("🤖 Select AI Provider & Model") + "\n")
 	s.WriteString(headerStyle.Render(" Current: "+config.AppConfig.Model+" ") + "\n\n")
-	
+
 	if !m.inModelMenu {
 		// Menú principal - selección de proveedor
 		s.WriteString(sectionStyle.Render("Select Provider (↑↓ to navigate, → to enter)") + "\n\n")
-		
+
 		for i := 0; i < 5; i++ {
 			isSelected := i == m.selectedProvider
 			color := lipgloss.Color(providerColors[i])
-			
+
 			if isSelected {
 				// Proveedor seleccionado - estilo destacado
 				boxStyle := lipgloss.NewStyle().
@@ -535,34 +536,34 @@ func (m model) renderSettingsView() string {
 					Background(lipgloss.Color("237")).
 					Padding(1, 2).
 					Width(20)
-				
+
 				title := lipgloss.NewStyle().Bold(true).Foreground(color).Render(providerIcons[i] + " " + providerNames[i])
 				count := getModelCountForProvider(i)
 				subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(fmt.Sprintf("%d models", count))
-				
-				s.WriteString(boxStyle.Render(title + "\n" + subtitle) + "\n\n")
+
+				s.WriteString(boxStyle.Render(title+"\n"+subtitle) + "\n\n")
 			} else {
 				// Proveedor no seleccionado - estilo simple
 				title := lipgloss.NewStyle().Foreground(color).Render("  " + providerIcons[i] + " " + providerNames[i])
 				s.WriteString(title + "\n")
 			}
 		}
-	
+
 		s.WriteString("\n" + hintStyle.Render("Press → to enter provider menu") + "\n")
 	} else {
 		// Submenú - selección de modelo dentro del proveedor
 		providerColor := lipgloss.Color(providerColors[m.selectedProvider])
 		providerStyle := lipgloss.NewStyle().Bold(true).Foreground(providerColor)
-		
+
 		s.WriteString(sectionStyle.Render("Select Model (↑↓ to navigate, Enter to select)") + "\n\n")
 		s.WriteString(providerStyle.Render("▸ "+providerNames[m.selectedProvider]) + "\n\n")
-		
+
 		modelCount := getModelCountForProvider(m.selectedProvider)
 		for i := 0; i < modelCount; i++ {
 			isSelected := i == m.selectedModel
 			modelName := getModelName(m.selectedProvider, i)
 			modelDesc := getModelDesc(m.selectedProvider, i)
-			
+
 			if isSelected {
 				// Modelo seleccionado
 				selectedStyle := lipgloss.NewStyle().
@@ -579,10 +580,10 @@ func (m model) renderSettingsView() string {
 				s.WriteString("    " + modelStyle.Render(modelName) + " " + descStyle.Render(modelDesc) + "\n")
 			}
 		}
-		
+
 		s.WriteString("\n" + hintStyle.Render("Press ← to go back to providers") + "\n")
 	}
-	
+
 	s.WriteString(hintStyle.Render("Press Ctrl+S to return to chat"))
 	return s.String()
 }
@@ -744,7 +745,7 @@ func RunChat() error {
 func createClientForCurrentModel() *api.Client {
 	provider := config.DetectProviderFromModel(config.AppConfig.Model)
 	apiKey := config.GetAPIKeyForProvider(provider)
-	
+
 	// Seleccionar la URL base correcta según el proveedor
 	var baseURL string
 	switch provider {
@@ -761,7 +762,7 @@ func createClientForCurrentModel() *api.Client {
 	default:
 		baseURL = config.AppConfig.BaseURL
 	}
-	
+
 	return api.NewClient(apiKey, baseURL)
 }
 
@@ -914,7 +915,7 @@ func (m *model) updateViewportContent() {
 		}
 		role := "Let'sGo(" + modelName + ")"
 		roleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
-		
+
 		// Renderizar el contenido parcial si es posible
 		rendered, err := m.renderer.Render(m.currentResponse)
 		if err != nil {
