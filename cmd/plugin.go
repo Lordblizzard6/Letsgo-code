@@ -22,7 +22,9 @@ func init() {
 var pluginCmd = &cobra.Command{
 	Use:   "plugin",
 	Short: "Manage plugins",
-	Long:  `Install, manage, and configure plugins to extend Claude Code Go functionality.`,
+	Long: `Install, manage, and configure plugins to extend Claude Code Go functionality.
+
+Currently, only plugins with manifest type "native" are supported.`,
 }
 
 var pluginInstallCmd = &cobra.Command{
@@ -37,7 +39,8 @@ Examples:
   # Install from local directory
   letsgo plugin install /path/to/plugin my-plugin
 
-Note: The plugin directory must contain a plugin.json manifest file.`,
+Note: The plugin directory must contain a plugin.json manifest file.
+Only plugins declaring type "native" are supported at this time.`,
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		source := args[0]
