@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,8 +18,11 @@ var DB *sql.DB
 var dbMu sync.RWMutex
 
 func InitDB() error {
-	home, _ := os.UserHomeDir()
-	dbPath := filepath.Join(home, ".letsGo", "history.db")
+	dbPath := os.Getenv("TEST_DB_PATH")
+	if dbPath == "" {
+		home, _ := os.UserHomeDir()
+		dbPath = filepath.Join(home, ".letsGo", "history.db")
+	}
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return err
 	}
@@ -74,6 +78,7 @@ func InitDB() error {
 			FOREIGN KEY (session_id) REFERENCES sessions(id)
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_messages_session_timestamp ON messages(session_id, timestamp DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_context_files_session ON context_files(session_id);`,
 	}
 
@@ -238,6 +243,100 @@ type Message struct {
 	Role      string      `json:"role"`
 	Content   interface{} `json:"content"`
 	Timestamp time.Time   `json:"timestamp"`
+}
+
+type SearchMessageResult struct {
+	ID        int64     `json:"id"`
+	Role      string    `json:"role"`
+	Fragment  string    `json:"fragment"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+func SearchMessages(sessionID, query string, limit, offset int) ([]SearchMessageResult, int, error) {
+	dbMu.RLock()
+	defer dbMu.RUnlock()
+
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	likeQuery := "%" + query + "%"
+	var total int
+	if err := DB.QueryRow(
+		`SELECT COUNT(*) FROM messages WHERE session_id = ? AND LOWER(content) LIKE LOWER(?)`,
+		sessionID, likeQuery,
+	).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := DB.Query(
+		`SELECT id, role, content, timestamp
+		 FROM messages
+		 WHERE session_id = ? AND LOWER(content) LIKE LOWER(?)
+		 ORDER BY timestamp DESC
+		 LIMIT ? OFFSET ?`,
+		sessionID, likeQuery, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	results := make([]SearchMessageResult, 0, limit)
+	for rows.Next() {
+		var (
+			id          int64
+			role        string
+			contentJSON string
+			timestamp   time.Time
+		)
+		if err := rows.Scan(&id, &role, &contentJSON, &timestamp); err != nil {
+			return nil, 0, err
+		}
+		results = append(results, SearchMessageResult{
+			ID:        id,
+			Role:      role,
+			Fragment:  buildSnippet(contentJSON, query, 120),
+			Timestamp: timestamp,
+		})
+	}
+	return results, total, nil
+}
+
+func buildSnippet(content, query string, maxLen int) string {
+	if maxLen <= 0 {
+		maxLen = 120
+	}
+	lowerContent := strings.ToLower(content)
+	lowerQuery := strings.ToLower(query)
+	idx := strings.Index(lowerContent, lowerQuery)
+
+	if idx < 0 {
+		if len(content) <= maxLen {
+			return content
+		}
+		return content[:maxLen] + "…"
+	}
+
+	start := idx - 40
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxLen
+	if end > len(content) {
+		end = len(content)
+	}
+	snippet := content[start:end]
+	if start > 0 {
+		snippet = "…" + snippet
+	}
+	if end < len(content) {
+		snippet += "…"
+	}
+	return snippet
 }
 
 // Session Memory

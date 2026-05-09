@@ -6,6 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/user/go-claude-code/internal/db"
 )
 
 // GetContextFilesSummary returns a summary of files in the current context
@@ -117,8 +120,44 @@ func GetSessionDiff() string {
 
 // SearchInConversation searches for text in conversation history
 func SearchInConversation(messages []interface{}, query string) string {
-	// This is a placeholder - would need actual message storage to search
-	return fmt.Sprintf("🔍 Searching for '%s' in conversation...\n(Note: Full search implementation requires message indexing)", query)
+	return SearchInConversationWithPagination(query, 1, 5)
+}
+
+func SearchInConversationWithPagination(query string, page, pageSize int) string {
+	if strings.TrimSpace(query) == "" {
+		return "❌ Search query cannot be empty."
+	}
+	activeSession, err := db.GetActiveSession()
+	if err != nil {
+		return fmt.Sprintf("❌ Could not load active session: %v", err)
+	}
+	if activeSession == nil {
+		return "⚠️ No active session found."
+	}
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 5
+	}
+
+	offset := (page - 1) * pageSize
+	results, total, err := db.SearchMessages(activeSession.ID, query, pageSize, offset)
+	if err != nil {
+		return fmt.Sprintf("❌ Search failed: %v", err)
+	}
+	if total == 0 {
+		return fmt.Sprintf("🔍 No results for '%s'.", query)
+	}
+
+	totalPages := (total + pageSize - 1) / pageSize
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("🔍 Results for '%s' (page %d/%d, total %d)\n\n", query, page, totalPages, total))
+	for _, r := range results {
+		sb.WriteString(fmt.Sprintf("• #%d [%s] %s\n", r.ID, r.Role, r.Timestamp.Format(time.RFC3339)))
+		sb.WriteString(fmt.Sprintf("  %s\n\n", r.Fragment))
+	}
+	return sb.String()
 }
 
 func isCodeFile(ext string) bool {

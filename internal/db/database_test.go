@@ -1,33 +1,18 @@
 package db
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
 
 func TestInitDB(t *testing.T) {
-	// Create temp directory for test DB
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "test.db")
-	
-	// Set custom DB path
-	os.Setenv("TEST_DB_PATH", dbPath)
-	
-	// Initialize DB
-	err := InitDB()
-	if err != nil {
-		// Expected to use default path, may fail if dir doesn't exist
-		// This is a basic smoke test
-		t.Logf("InitDB result: %v", err)
+	setupTestDB(t)
+	if DB == nil {
+		t.Fatal("expected DB to be initialized")
 	}
 }
 
 func TestCreateSession(t *testing.T) {
-	// Skip if no DB available
-	if DB == nil {
-		t.Skip("No database connection available")
-	}
+	setupTestDB(t)
 	
 	sessionID, err := CreateSession("test-session", "/tmp/test")
 	if err != nil {
