@@ -177,11 +177,24 @@ func handleTokens(args string) string {
 }
 
 func handleSearch(args string) string {
+	args = strings.TrimSpace(args)
 	if args == "" {
 		return " **Search Usage:**\nType `/search <keyword>` to search through the conversation history.\n\nExample: `/search function`"
 	}
-
-	return fmt.Sprintf(" Searching for '%s'... (Feature coming soon - will search through conversation history)", args)
+	page := 1
+	limit := 5
+	query := args
+	for _, token := range strings.Fields(args) {
+		if strings.HasPrefix(token, "page=") {
+			fmt.Sscanf(token, "page=%d", &page)
+			query = strings.TrimSpace(strings.Replace(query, token, "", 1))
+		}
+		if strings.HasPrefix(token, "limit=") {
+			fmt.Sscanf(token, "limit=%d", &limit)
+			query = strings.TrimSpace(strings.Replace(query, token, "", 1))
+		}
+	}
+	return tools.SearchInConversationWithPagination(query, page, limit)
 }
 
 // getCurrentSessionID retorna el ID de sesión actual (placeholder)
