@@ -32,10 +32,10 @@ var pluginInstallCmd = &cobra.Command{
 
 Examples:
   # Install from git
-  claudego plugin install https://github.com/user/my-plugin.git my-plugin
+  letsgo plugin install https://github.com/user/my-plugin.git my-plugin
 
   # Install from local directory
-  claudego plugin install /path/to/plugin my-plugin
+  letsgo plugin install /path/to/plugin my-plugin
 
 Note: The plugin directory must contain a plugin.json manifest file.`,
 	Args: cobra.ExactArgs(2),
@@ -53,7 +53,7 @@ Note: The plugin directory must contain a plugin.json manifest file.`,
 
 		fmt.Printf("✓ Plugin '%s' installed successfully\n", name)
 		fmt.Println("\nTo enable the plugin:")
-		fmt.Printf("  claudego plugin enable %s\n", name)
+		fmt.Printf("  letsgo plugin enable %s\n", name)
 	},
 }
 
@@ -84,7 +84,7 @@ var pluginListCmd = &cobra.Command{
 		if len(pluginList) == 0 {
 			fmt.Println("No plugins installed.")
 			fmt.Println("\nInstall a plugin with:")
-			fmt.Println("  claudego plugin install <source> <name>")
+			fmt.Println("  letsgo plugin install <source> <name>")
 			return
 		}
 
