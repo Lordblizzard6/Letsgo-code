@@ -16,7 +16,7 @@ var releaseNotesCmd = &cobra.Command{
 	Long:  `Display the latest changes, improvements, and bug fixes in Claude Code CLI.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("🚀 Claude Code CLI - Release Notes")
-		fmt.Println("===================================\n")
+		fmt.Println("===================================")
 
 		fmt.Println("Version 0.1.0 - Initial Release")
 		fmt.Println("------------------------------")

@@ -32,7 +32,7 @@ Installation requires GitHub authentication.`,
 		org, _ := cmd.Flags().GetString("org")
 
 		fmt.Println("🔗 Installing Claude Code GitHub App")
-		fmt.Println("====================================\n")
+		fmt.Println("====================================")
 
 		// Check for gh CLI
 		if _, err := exec.LookPath("gh"); err != nil {

@@ -22,7 +22,7 @@ var doctorCmd = &cobra.Command{
 	Short: "Diagnose potential issues with your setup",
 	Long:  `Run diagnostics to check your Claude Code installation and configuration.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("🔍 Running diagnostics...\n")
+		fmt.Println("🔍 Running diagnostics...")
 
 		issues := 0
 		warnings := 0

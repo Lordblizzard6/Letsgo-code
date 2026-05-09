@@ -40,12 +40,12 @@ To create a token:
 4. Copy the token and paste it here`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Print("Enter GitHub personal access token: ")
-		
+
 		// Read token (hidden input)
 		var token string
 		fmt.Scanln(&token)
 		token = strings.TrimSpace(token)
-		
+
 		if token == "" {
 			fmt.Println("Error: Token cannot be empty")
 			return
@@ -86,7 +86,7 @@ var ghUserCmd = &cobra.Command{
 	Short: "Show authenticated user info",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := github.NewClient()
-		
+
 		if !client.IsAuthenticated() {
 			fmt.Println("Not authenticated. Run: claudego github login")
 			return
@@ -117,7 +117,7 @@ var ghReposCmd = &cobra.Command{
 	Short: "List your repositories",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := github.NewClient()
-		
+
 		if !client.IsAuthenticated() {
 			fmt.Println("Not authenticated. Run: claudego github login")
 			return
@@ -143,7 +143,7 @@ var ghReposCmd = &cobra.Command{
 			if len(desc) > 40 {
 				desc = desc[:37] + "..."
 			}
-			fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\n", 
+			fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\n",
 				repo.FullName, repo.Stars, repo.Forks, repo.Language, desc)
 		}
 		w.Flush()
@@ -186,7 +186,7 @@ var ghIssuesCmd = &cobra.Command{
 			if len(title) > 50 {
 				title = title[:47] + "..."
 			}
-			fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", 
+			fmt.Fprintf(w, "%d\t%s\t%s\t%s\n",
 				issue.Number, title, issue.State, issue.CreatedAt.Format("2006-01-02"))
 		}
 		w.Flush()
@@ -229,7 +229,7 @@ var ghPullRequestsCmd = &cobra.Command{
 			if len(title) > 40 {
 				title = title[:37] + "..."
 			}
-			fmt.Fprintf(w, "%d\t%s\t%s\t%s -> %s\t%s\n", 
+			fmt.Fprintf(w, "%d\t%s\t%s\t%s -> %s\t%s\n",
 				pr.Number, title, pr.User.Login, pr.Head.Ref, pr.Base.Ref, pr.State)
 		}
 		w.Flush()

@@ -21,7 +21,7 @@ var rateLimitOptionsCmd = &cobra.Command{
 		tokens, _ := cmd.Flags().GetInt("tokens")
 
 		fmt.Println("⏱️  Rate Limit Options")
-		fmt.Println("=====================\n")
+		fmt.Println("=====================")
 
 		// Show current settings
 		fmt.Println("Current Settings:")

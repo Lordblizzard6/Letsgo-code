@@ -38,23 +38,23 @@ This wizard will help you:
 		}
 
 		fmt.Println("🚀 Welcome to Claude Code!")
-		fmt.Println("==========================\n")
+		fmt.Println("==========================")
 
 		if reset {
-			fmt.Println("♻️  Restarting onboarding...\n")
+			fmt.Println("♻️  Restarting onboarding...")
 		} else if isOnboardingComplete() {
 			fmt.Println("✓ Onboarding already completed")
-			fmt.Println("Use --reset to run again\n")
+			fmt.Println("Use --reset to run again")
 			return
 		}
 
 		fmt.Println("Let's get you set up with Claude Code.")
-		fmt.Println("This will only take a few minutes.\n")
+		fmt.Println("This will only take a few minutes.")
 
 		// Step 1: API Configuration
 		fmt.Println("📋 Step 1: AI Provider Configuration")
 		fmt.Println("-------------------------------------")
-		
+
 		if err := stepAPIConfig(); err != nil {
 			fmt.Fprintf(os.Stderr, "\n❌ Error: %v\n", err)
 			os.Exit(1)
@@ -63,7 +63,7 @@ This wizard will help you:
 		// Step 2: Git Setup
 		fmt.Println("\n📋 Step 2: Git Integration")
 		fmt.Println("--------------------------")
-		
+
 		if err := stepGitSetup(); err != nil {
 			fmt.Fprintf(os.Stderr, "\n⚠️  Git setup warning: %v\n", err)
 		}
@@ -71,7 +71,7 @@ This wizard will help you:
 		// Step 3: Preferences
 		fmt.Println("\n📋 Step 3: Preferences")
 		fmt.Println("----------------------")
-		
+
 		if err := stepPreferences(); err != nil {
 			fmt.Fprintf(os.Stderr, "\n⚠️  Preferences warning: %v\n", err)
 		}
@@ -97,15 +97,15 @@ This wizard will help you:
 func stepAPIConfig() error {
 	// Check current config
 	config.LoadConfig()
-	
+
 	if config.AppConfig.APIKey != "" {
 		masked := config.AppConfig.APIKey[:5] + "..." + config.AppConfig.APIKey[len(config.AppConfig.APIKey)-4:]
 		fmt.Printf("✓ API Key already configured: %s\n", masked)
-		
+
 		fmt.Print("\nWould you like to reconfigure? [y/N]: ")
 		var response string
 		fmt.Scanln(&response)
-		
+
 		if strings.ToLower(response) != "y" {
 			fmt.Printf("✓ Using existing configuration (%s)\n", config.AppConfig.Model)
 			return nil
@@ -118,11 +118,11 @@ func stepAPIConfig() error {
 	fmt.Println("  2. OpenAI (GPT-4)")
 	fmt.Println("  3. Groq (Fast, cost-effective)")
 	fmt.Println("  4. Other (custom endpoint)")
-	
+
 	fmt.Print("\nSelect [1-4]: ")
 	var choice string
 	fmt.Scanln(&choice)
-	
+
 	switch choice {
 	case "1":
 		fmt.Println("\n📝 Anthropic Configuration")
@@ -130,7 +130,7 @@ func stepAPIConfig() error {
 		fmt.Print("Enter API Key: ")
 		var apiKey string
 		fmt.Scanln(&apiKey)
-		
+
 		if apiKey != "" {
 			config.AppConfig.APIKey = apiKey
 			config.AppConfig.BaseURL = "https://api.anthropic.com/v1"
@@ -138,14 +138,14 @@ func stepAPIConfig() error {
 			config.SaveConfig()
 			fmt.Println("✓ Configuration saved")
 		}
-		
+
 	case "2":
 		fmt.Println("\n📝 OpenAI Configuration")
 		fmt.Println("Get your API key from: https://platform.openai.com/")
 		fmt.Print("Enter API Key: ")
 		var apiKey string
 		fmt.Scanln(&apiKey)
-		
+
 		if apiKey != "" {
 			config.AppConfig.APIKey = apiKey
 			config.AppConfig.BaseURL = "https://api.openai.com/v1"
@@ -153,14 +153,14 @@ func stepAPIConfig() error {
 			config.SaveConfig()
 			fmt.Println("✓ Configuration saved")
 		}
-		
+
 	case "3":
 		fmt.Println("\n📝 Groq Configuration")
 		fmt.Println("Get your API key from: https://console.groq.com/")
 		fmt.Print("Enter API Key: ")
 		var apiKey string
 		fmt.Scanln(&apiKey)
-		
+
 		if apiKey != "" {
 			config.AppConfig.APIKey = apiKey
 			config.AppConfig.BaseURL = "https://api.groq.com/openai/v1"
@@ -168,7 +168,7 @@ func stepAPIConfig() error {
 			config.SaveConfig()
 			fmt.Println("✓ Configuration saved")
 		}
-		
+
 	case "4":
 		fmt.Println("\n📝 Custom Configuration")
 		fmt.Print("Enter API Key: ")
@@ -180,7 +180,7 @@ func stepAPIConfig() error {
 		fmt.Print("Enter Model Name: ")
 		var model string
 		fmt.Scanln(&model)
-		
+
 		if apiKey != "" && baseURL != "" && model != "" {
 			config.AppConfig.APIKey = apiKey
 			config.AppConfig.BaseURL = baseURL
@@ -188,11 +188,11 @@ func stepAPIConfig() error {
 			config.SaveConfig()
 			fmt.Println("✓ Configuration saved")
 		}
-		
+
 	default:
 		fmt.Println("Skipping API configuration")
 	}
-	
+
 	return nil
 }
 
@@ -209,7 +209,7 @@ func stepGitSetup() error {
 		fmt.Print("Would you like to initialize git here? [y/N]: ")
 		var response string
 		fmt.Scanln(&response)
-		
+
 		if strings.ToLower(response) == "y" {
 			if err := exec.Command("git", "init").Run(); err != nil {
 				return fmt.Errorf("failed to initialize git: %w", err)
@@ -225,7 +225,7 @@ func stepGitSetup() error {
 			fmt.Println("✓ Git repository detected (no remotes configured)")
 		}
 	}
-	
+
 	return nil
 }
 
@@ -234,11 +234,11 @@ func stepPreferences() error {
 	fmt.Println("  1. Dark (default)")
 	fmt.Println("  2. Light")
 	fmt.Println("  3. Auto (follows system)")
-	
+
 	fmt.Print("\nSelect [1-3, default=1]: ")
 	var choice string
 	fmt.Scanln(&choice)
-	
+
 	switch choice {
 	case "2":
 		fmt.Println("✓ Light theme selected")
@@ -247,20 +247,20 @@ func stepPreferences() error {
 	default:
 		fmt.Println("✓ Dark theme selected (default)")
 	}
-	
+
 	fmt.Println("\nChoose your vim mode preference:")
 	fmt.Println("  1. Disabled (default)")
 	fmt.Println("  2. Enabled")
-	
+
 	fmt.Print("\nSelect [1-2, default=1]: ")
 	fmt.Scanln(&choice)
-	
+
 	if choice == "2" {
 		fmt.Println("✓ Vim mode enabled")
 	} else {
 		fmt.Println("✓ Vim mode disabled (default)")
 	}
-	
+
 	return nil
 }
 

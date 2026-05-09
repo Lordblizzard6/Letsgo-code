@@ -95,7 +95,7 @@ var commitPushPrCmd = &cobra.Command{
 		// Create PR if gh CLI is available
 		if _, err := exec.LookPath("gh"); err == nil {
 			fmt.Println("📋 Creating PR...")
-			
+
 			prTitle := title
 			if prTitle == "" {
 				prTitle = commitMsg

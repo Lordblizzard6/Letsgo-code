@@ -25,7 +25,7 @@ var privacyShowCmd = &cobra.Command{
 	Short: "Show current privacy settings",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("🔒 Privacy Settings")
-		fmt.Println("==================\n")
+		fmt.Println("==================")
 
 		if err := config.LoadConfig(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)

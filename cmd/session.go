@@ -24,8 +24,8 @@ var sessionCmd = &cobra.Command{
 }
 
 var sessionListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all sessions",
+	Use:     "list",
+	Short:   "List all sessions",
 	Aliases: []string{"ls"},
 	Run: func(cmd *cobra.Command, args []string) {
 		sessions, err := db.ListSessions()

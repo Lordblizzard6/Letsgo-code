@@ -126,8 +126,14 @@ func handleClear() string {
 		fmt.Fprintf(os.Stderr, "[slash] /clear failed: %v\n", err)
 		return fmt.Sprintf("❌ Error al limpiar conversación: %v", err)
 	}
-	_, _ = db.DB.Exec("DELETE FROM context_files WHERE session_id = ?", currentSlashSessionID)
-	_, _ = db.DB.Exec("DELETE FROM compact_history WHERE session_id = ?", currentSlashSessionID)
+	if _, err := db.DB.Exec("DELETE FROM context_files WHERE session_id = ?", currentSlashSessionID); err != nil {
+		fmt.Fprintf(os.Stderr, "[slash] /clear failed deleting context_files: %v\n", err)
+		return fmt.Sprintf("❌ Error al limpiar archivos de contexto: %v", err)
+	}
+	if _, err := db.DB.Exec("DELETE FROM compact_history WHERE session_id = ?", currentSlashSessionID); err != nil {
+		fmt.Fprintf(os.Stderr, "[slash] /clear failed deleting compact_history: %v\n", err)
+		return fmt.Sprintf("❌ Error al limpiar historial compacto: %v", err)
+	}
 	fmt.Fprintf(os.Stderr, "[slash] /clear executed for session=%s\n", currentSlashSessionID)
 	return "🧹 Conversación limpiada en memoria activa y persistencia"
 }
@@ -160,13 +166,22 @@ func handleCompact() string {
 		fmt.Fprintf(os.Stderr, "[slash] /compact skipped for session=%s messages=%d\n", currentSlashSessionID, original)
 		return "🗜️ No se requiere compactación (historial corto)"
 	}
-	if err := db.ClearSessionHistory(currentSlashSessionID); err != nil {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return fmt.Sprintf("❌ Error al compactar (tx begin): %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec("DELETE FROM messages WHERE session_id = ?", currentSlashSessionID); err != nil {
 		return fmt.Sprintf("❌ Error al compactar: %v", err)
 	}
 	for _, msg := range history[original-20:] {
-		if err := db.SaveMessage(currentSlashSessionID, msg.Role, msg.Content); err != nil {
+		if _, err := tx.Exec("INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)", currentSlashSessionID, msg.Role, msg.Content); err != nil {
 			return fmt.Sprintf("❌ Error al reescribir historial compacto: %v", err)
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Sprintf("❌ Error al confirmar compactación: %v", err)
 	}
 	summary := fmt.Sprintf("Compacted from %d to %d messages (kept most recent).", original, 20)
 	_ = db.SaveCompactHistory(currentSlashSessionID, original, 20, summary)

@@ -58,7 +58,7 @@ var statsCmd = &cobra.Command{
 		a := analytics.GetAnalytics()
 		stats := a.GetStats()
 
-		fmt.Println("=== Usage Statistics ===\n")
+		fmt.Println("=== Usage Statistics ===")
 
 		// Overall stats
 		fmt.Printf("Total Sessions:     %d\n", stats.TotalSessions)

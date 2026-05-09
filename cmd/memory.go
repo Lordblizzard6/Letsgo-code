@@ -25,8 +25,8 @@ var memoryCmd = &cobra.Command{
 }
 
 var memoryListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all memory entries",
+	Use:     "list",
+	Short:   "List all memory entries",
 	Aliases: []string{"ls"},
 	Run: func(cmd *cobra.Command, args []string) {
 		memories, err := db.ListMemory()
@@ -87,10 +87,10 @@ var memoryGetCmd = &cobra.Command{
 }
 
 var memoryDeleteCmd = &cobra.Command{
-	Use:   "delete [key]",
-	Short: "Delete a memory entry",
+	Use:     "delete [key]",
+	Short:   "Delete a memory entry",
 	Aliases: []string{"rm", "del"},
-	Args:  cobra.ExactArgs(1),
+	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
 		if err := db.DeleteMemory(key); err != nil {
@@ -112,21 +112,21 @@ var costCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		tracker := tools.GetCostTracker()
 		sessionCost := tracker.GetSessionCost()
-		
-		fmt.Println("=== Cost Information ===\n")
+
+		fmt.Println("=== Cost Information ===")
 		fmt.Printf("Current Session: %s\n", tools.FormatCost(sessionCost))
-		
+
 		// Get stats from today
 		todayStats := tracker.GetUsageStats(tools.GetStartOfDay())
 		fmt.Printf("Today:           %s\n", tools.FormatCost(todayStats["total_cost_usd"].(float64)))
-		
+
 		// Get stats from this week
 		weekStats := tracker.GetUsageStats(tools.GetStartOfWeek())
 		fmt.Printf("This Week:       %s\n", tools.FormatCost(weekStats["total_cost_usd"].(float64)))
-		
+
 		fmt.Println("\nUsage Today:")
 		fmt.Printf("  Requests:  %d\n", todayStats["total_requests"])
-		fmt.Printf("  Tokens:    %d (%d in, %d out)\n", 
+		fmt.Printf("  Tokens:    %d (%d in, %d out)\n",
 			todayStats["total_tokens"],
 			todayStats["total_input_tokens"],
 			todayStats["total_output_tokens"])
