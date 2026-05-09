@@ -18,7 +18,7 @@ type Plugin struct {
 	Description string                 `json:"description"`
 	Author      string                 `json:"author"`
 	Path        string                 `json:"path"`
-	Type        string                 `json:"type"` // "wasm", "native", "script"
+	Type        string                 `json:"type"` // currently only "native" is supported
 	Config      map[string]interface{} `json:"config,omitempty"`
 	Enabled     bool                   `json:"enabled"`
 	Loaded      bool                   `json:"-"`
@@ -401,7 +401,7 @@ type Manifest struct {
 	Version     string `json:"version"`
 	Description string `json:"description"`
 	Author      string `json:"author"`
-	Type        string `json:"type"` // "native", "wasm", "script"
+	Type        string `json:"type"` // currently only "native" is supported
 	Main        string `json:"main,omitempty"`
 	EntryPoint  string `json:"entryPoint,omitempty"`
 }
@@ -425,6 +425,10 @@ func (r *Registry) readManifest(path string) (*Manifest, error) {
 	}
 	if manifest.Type == "" {
 		manifest.Type = "native" // Default
+	}
+
+	if manifest.Type != "native" {
+		return nil, fmt.Errorf("unsupported plugin type '%s': only 'native' plugins are currently supported", manifest.Type)
 	}
 
 	return &manifest, nil

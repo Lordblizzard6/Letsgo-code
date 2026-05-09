@@ -302,3 +302,9 @@ MIT License - see [LICENSE](LICENSE) file
 **Status:** ✅ Production Ready  
 **Version:** 0.1.0  
 **Maintained by:** [lordblizzard6](https://github.com/lordblizzard6)
+
+
+### Plugin support
+
+The current plugin runtime supports only `native` plugins (Go `plugin.so`).
+Manifests that declare `type: "wasm"` or `type: "script"` are rejected during installation.
