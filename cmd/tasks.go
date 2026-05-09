@@ -62,12 +62,12 @@ var tasksListCmd = &cobra.Command{
 var tasksCreateCmd = &cobra.Command{
 	Use:   "create [command...]",
 	Short: "Create a new background task",
-	Example: `  letsGo tasks create sleep 10
-  letsGo tasks create npm install
-  letsGo tasks create go test ./...`,
+	Example: `  letsgo tasks create sleep 10
+  letsgo tasks create npm install
+  letsgo tasks create go test ./...`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			fmt.Println("Usage: letsGo tasks create [command...]")
+			fmt.Println("Usage: letsgo tasks create [command...]")
 			return
 		}
 
@@ -79,7 +79,7 @@ var tasksCreateCmd = &cobra.Command{
 
 		fmt.Printf("✓ Task created: %s\n", taskID)
 		fmt.Printf("  Command: %s\n", args[0])
-		fmt.Println("\nCheck status with: claudego tasks status " + taskID)
+		fmt.Println("\nCheck status with: letsgo tasks status " + taskID)
 	},
 }
 
