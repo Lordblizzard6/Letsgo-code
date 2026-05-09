@@ -42,7 +42,7 @@ var debugToolCallCmd = &cobra.Command{
 		}
 
 		fmt.Printf("🔧 Debugging Tool Call: %s\n", toolName)
-		fmt.Println("==========================================\n")
+		fmt.Println("==========================================")
 
 		// Parse input
 		var inputMap map[string]interface{}
@@ -61,18 +61,18 @@ var debugToolCallCmd = &cobra.Command{
 		// Execute tool
 		fmt.Println("Executing...")
 		fmt.Println("------------")
-		
+
 		result, err := executeToolDebug(toolName, inputMap)
-		
+
 		fmt.Println()
 		fmt.Println("Result:")
 		fmt.Println("-------")
-		
+
 		if err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		fmt.Printf("✅ Success!\n\n")
 		fmt.Printf("Output:\n%s\n", result)
 	},

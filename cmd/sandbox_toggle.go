@@ -18,7 +18,7 @@ var sandboxToggleCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			fmt.Println("🧪 Sandbox Mode")
-			fmt.Println("==============\n")
+			fmt.Println("==============")
 			fmt.Println("Status: Disabled")
 			fmt.Println("\nSandbox mode restricts potentially dangerous operations.")
 			fmt.Println("When enabled, commands like 'rm', 'dd', etc. are blocked.")
@@ -27,7 +27,7 @@ var sandboxToggleCmd = &cobra.Command{
 		}
 
 		state := args[0]
-		
+
 		switch state {
 		case "on", "enable":
 			fmt.Println("✓ Sandbox mode enabled")

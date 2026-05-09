@@ -32,7 +32,7 @@ Requires Slack workspace admin approval.`,
 		channel, _ := cmd.Flags().GetString("channel")
 
 		fmt.Println("💬 Installing Claude Code Slack App")
-		fmt.Println("====================================\n")
+		fmt.Println("====================================")
 
 		if workspace == "" {
 			fmt.Print("Enter your Slack workspace URL (e.g., mycompany.slack.com): ")
@@ -48,9 +48,9 @@ Requires Slack workspace admin approval.`,
 
 		// Open Slack app installation
 		installURL := fmt.Sprintf("https://%s/apps/manage", workspace)
-		
+
 		fmt.Println("\n🌐 Opening Slack app management...")
-		
+
 		var openCmd *exec.Cmd
 		switch runtime.GOOS {
 		case "darwin":
@@ -60,7 +60,7 @@ Requires Slack workspace admin approval.`,
 		default:
 			openCmd = exec.Command("xdg-open", installURL)
 		}
-		
+
 		if err := openCmd.Start(); err != nil {
 			fmt.Printf("\nPlease visit: %s\n", installURL)
 		} else {
@@ -72,11 +72,11 @@ Requires Slack workspace admin approval.`,
 		fmt.Println("2. Click 'Add to Slack'")
 		fmt.Println("3. Choose permissions (recommend: read messages, post messages)")
 		fmt.Println("4. Copy the Bot User OAuth Token")
-		
+
 		fmt.Println("\n⚙️  Configuration:")
 		fmt.Println("Set environment variable:")
 		fmt.Println("  export SLACK_BOT_TOKEN=xoxb-your-token")
-		
+
 		if channel != "" {
 			fmt.Printf("\n  export SLACK_CHANNEL=%s\n", channel)
 		}

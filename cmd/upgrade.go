@@ -59,7 +59,7 @@ var upgradeCmd = &cobra.Command{
 			fmt.Println("  go install github.com/user/go-claude-code@latest")
 		case "darwin", "linux":
 			fmt.Println("Upgrading...")
-			
+
 			// Try different methods
 			methods := []string{
 				"go install github.com/user/go-claude-code@latest",
@@ -80,7 +80,7 @@ var upgradeCmd = &cobra.Command{
 					}
 				}
 			}
-			
+
 			fmt.Println("\n⚠️  Automatic upgrade failed. Please upgrade manually:")
 			fmt.Println("  go install github.com/user/go-claude-code@latest")
 		}
@@ -91,7 +91,7 @@ func splitCommand(cmd string) []string {
 	var parts []string
 	var current string
 	inQuote := false
-	
+
 	for _, r := range cmd {
 		switch r {
 		case '"', '\'':
@@ -107,10 +107,10 @@ func splitCommand(cmd string) []string {
 			current += string(r)
 		}
 	}
-	
+
 	if current != "" {
 		parts = append(parts, current)
 	}
-	
+
 	return parts
 }

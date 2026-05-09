@@ -24,12 +24,12 @@ var skillsCmd = &cobra.Command{
 }
 
 var skillsListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available skills",
+	Use:     "list",
+	Short:   "List available skills",
 	Aliases: []string{"ls"},
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("=== Available Skills ===\n")
-		
+		fmt.Println("=== Available Skills ===")
+
 		skills := []struct {
 			Name        string
 			Category    string
@@ -53,11 +53,11 @@ var skillsListCmd = &cobra.Command{
 			{"onboard", "project", "Project onboarding and setup"},
 			{"structure", "project", "Suggest project structure"},
 		}
-		
+
 		for _, s := range skills {
 			fmt.Printf("  %-15s [%-8s] %s\n", s.Name, s.Category, s.Description)
 		}
-		
+
 		fmt.Println("\nUsage: claudego skills run [skill-name]")
 	},
 }
@@ -68,7 +68,7 @@ var skillsInfoCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		skillName := args[0]
-		
+
 		skills := map[string]string{
 			"git-commit": `Generate conventional commit messages based on git diff.
 
@@ -102,7 +102,7 @@ covering normal cases, edge cases, and error conditions.
 Example usage:
   claudego skills run test`,
 		}
-		
+
 		if info, ok := skills[skillName]; ok {
 			fmt.Printf("=== Skill: %s ===\n\n", skillName)
 			fmt.Println(info)
@@ -118,11 +118,11 @@ var skillsRunCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		skillName := args[0]
-		
+
 		// Check if skill exists
 		skillsDir := filepath.Join(config.GetConfigDir(), "skills")
 		skillPath := filepath.Join(skillsDir, skillName+".md")
-		
+
 		if _, err := os.Stat(skillPath); os.IsNotExist(err) {
 			// Use built-in skill
 			switch skillName {
@@ -136,14 +136,14 @@ var skillsRunCmd = &cobra.Command{
 			}
 			return
 		}
-		
+
 		// Read and execute custom skill
 		data, err := os.ReadFile(skillPath)
 		if err != nil {
 			fmt.Printf("Error reading skill: %v\n", err)
 			return
 		}
-		
+
 		fmt.Printf("Running skill: %s\n\n", skillName)
 		fmt.Println(string(data))
 	},
@@ -152,7 +152,7 @@ var skillsRunCmd = &cobra.Command{
 func runGitCommitSkill() {
 	fmt.Println("📝 Git Commit Skill")
 	fmt.Println("\nAnalyzing staged changes...")
-	
+
 	// Get git diff
 	cmd := exec.Command("git", "diff", "--staged")
 	output, err := cmd.Output()
@@ -161,12 +161,12 @@ func runGitCommitSkill() {
 		fmt.Println("Stage changes with: git add <files>")
 		return
 	}
-	
+
 	if len(output) == 0 {
 		fmt.Println("No staged changes to analyze.")
 		return
 	}
-	
+
 	fmt.Printf("\nFound %d bytes of changes.\n", len(output))
 	fmt.Println("\nSuggested commit message types:")
 	fmt.Println("  feat:     New feature")

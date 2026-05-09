@@ -18,7 +18,7 @@ var outputStyleCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			fmt.Println("🎨 Output Style")
-			fmt.Println("==============\n")
+			fmt.Println("==============")
 			fmt.Println("Current style: markdown")
 			fmt.Println("\nAvailable styles:")
 			fmt.Println("  • markdown - Rich formatted output with Markdown")
@@ -29,7 +29,7 @@ var outputStyleCmd = &cobra.Command{
 		}
 
 		style := args[0]
-		
+
 		switch style {
 		case "markdown":
 			fmt.Println("✓ Output style set to: markdown")

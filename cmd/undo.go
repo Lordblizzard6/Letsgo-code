@@ -125,7 +125,7 @@ var redoCmd = &cobra.Command{
 
 		// Revert the undo (which restores the original)
 		fmt.Printf("Redoing: %s\n", commitMsg)
-		
+
 		revertCmd := exec.Command("git", "revert", "--no-commit", "HEAD")
 		revertCmd.Stdout = os.Stdout
 		revertCmd.Stderr = os.Stderr

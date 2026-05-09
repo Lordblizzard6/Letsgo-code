@@ -19,7 +19,7 @@ var oauthRefreshCmd = &cobra.Command{
 	Long:  `Manually refresh OAuth tokens for cloud provider integrations.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("🔐 OAuth Token Refresh")
-		fmt.Println("======================\n")
+		fmt.Println("======================")
 
 		// Check current auth status
 		err := config.LoadConfig()

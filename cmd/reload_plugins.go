@@ -29,7 +29,7 @@ By default, only changed plugins are reloaded. Use --force to reload all.`,
 		force, _ := cmd.Flags().GetBool("force")
 
 		fmt.Println("🔄 Reloading Plugins")
-		fmt.Println("====================\n")
+		fmt.Println("====================")
 
 		// Get plugins directory
 		configDir := config.GetConfigDir()

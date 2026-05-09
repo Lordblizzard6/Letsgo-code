@@ -22,11 +22,11 @@ var configCmd = &cobra.Command{
 }
 
 var configListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all configuration settings",
+	Use:     "list",
+	Short:   "List all configuration settings",
 	Aliases: []string{"ls"},
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("=== Configuration Settings ===\n")
+		fmt.Println("=== Configuration Settings ===")
 		fmt.Printf("API Key: %s\n", maskString(config.AppConfig.APIKey))
 		fmt.Printf("Base URL: %s\n", config.AppConfig.BaseURL)
 		fmt.Printf("Model: %s\n", config.AppConfig.Model)
@@ -67,10 +67,10 @@ var configSetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		key, value := args[0], args[1]
-		
+
 		// Load current config
 		config.LoadConfig()
-		
+
 		switch key {
 		case "api_key":
 			config.AppConfig.APIKey = value
@@ -107,7 +107,7 @@ var configSetCmd = &cobra.Command{
 			fmt.Printf("Unknown setting: %s\n", key)
 			return
 		}
-		
+
 		// Save config
 		config.SaveConfig()
 	},
