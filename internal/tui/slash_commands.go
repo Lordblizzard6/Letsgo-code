@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/user/go-claude-code/internal/db"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/user/go-claude-code/internal/config"
 	"github.com/user/go-claude-code/internal/tools"
@@ -26,6 +28,7 @@ type MentionContext struct {
 }
 
 var (
+	currentSlashSessionID string
 	// AvailableSlashCommands lista todos los comandos slash disponibles
 	AvailableSlashCommands = []SlashCommand{
 		{Name: "/help", Description: "Show available commands"},
@@ -72,7 +75,7 @@ func ProcessSlashCommand(input string) (response string, shouldContinue bool, sh
 	case "/quit", "/exit":
 		return "👋 Goodbye!", false, true
 	case "/clear":
-		return "🧹 Conversation cleared!", true, false
+		return handleClear(), true, false
 	case "/help":
 		return formatHelp(), true, false
 	case "/model":
@@ -84,9 +87,9 @@ func ProcessSlashCommand(input string) (response string, shouldContinue bool, sh
 	case "/tokens":
 		return handleTokens(args), true, false
 	case "/compact":
-		return "🗜️ Conversation compacted!", true, false
+		return handleCompact(), true, false
 	case "/save":
-		return "💾 Session saved!", true, false
+		return handleSave(), true, false
 	case "/files":
 		return tools.GetContextFilesSummary(), true, false
 	case "/diff":
@@ -100,14 +103,80 @@ func ProcessSlashCommand(input string) (response string, shouldContinue bool, sh
 	case "/task":
 		return "📋 Task: " + args, true, false
 	case "/undo":
-		return "↩️ Undo available via git", true, false
+		return handleUndoRedo("undo"), true, false
 	case "/redo":
-		return "↪️ Redo available via git", true, false
+		return handleUndoRedo("redo"), true, false
 	case "/search":
 		return handleSearch(args), true, false
 	default:
 		return fmt.Sprintf("❓ Unknown command: %s\nType /help for available commands", cmd), true, false
 	}
+}
+
+func SetSlashCommandSessionID(sessionID string) {
+	currentSlashSessionID = sessionID
+}
+
+func handleClear() string {
+	if currentSlashSessionID == "" {
+		fmt.Fprintln(os.Stderr, "[slash] /clear failed: empty session id")
+		return "❌ /clear no disponible: sesión actual no identificada"
+	}
+	if err := db.ClearSessionHistory(currentSlashSessionID); err != nil {
+		fmt.Fprintf(os.Stderr, "[slash] /clear failed: %v\n", err)
+		return fmt.Sprintf("❌ Error al limpiar conversación: %v", err)
+	}
+	_, _ = db.DB.Exec("DELETE FROM context_files WHERE session_id = ?", currentSlashSessionID)
+	_, _ = db.DB.Exec("DELETE FROM compact_history WHERE session_id = ?", currentSlashSessionID)
+	fmt.Fprintf(os.Stderr, "[slash] /clear executed for session=%s\n", currentSlashSessionID)
+	return "🧹 Conversación limpiada en memoria activa y persistencia"
+}
+
+func handleSave() string {
+	if currentSlashSessionID == "" {
+		fmt.Fprintln(os.Stderr, "[slash] /save failed: empty session id")
+		return "❌ /save no disponible: sesión actual no identificada"
+	}
+	if err := db.UpdateSessionTimestamp(currentSlashSessionID); err != nil {
+		fmt.Fprintf(os.Stderr, "[slash] /save failed: %v\n", err)
+		return fmt.Sprintf("❌ Error al guardar sesión: %v", err)
+	}
+	fmt.Fprintf(os.Stderr, "[slash] /save executed for session=%s\n", currentSlashSessionID)
+	return "💾 Sesión guardada en DB correctamente"
+}
+
+func handleCompact() string {
+	if currentSlashSessionID == "" {
+		fmt.Fprintln(os.Stderr, "[slash] /compact failed: empty session id")
+		return "❌ /compact no disponible: sesión actual no identificada"
+	}
+	history, err := db.GetHistory(currentSlashSessionID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[slash] /compact failed loading history: %v\n", err)
+		return fmt.Sprintf("❌ Error al compactar: %v", err)
+	}
+	original := len(history)
+	if original <= 20 {
+		fmt.Fprintf(os.Stderr, "[slash] /compact skipped for session=%s messages=%d\n", currentSlashSessionID, original)
+		return "🗜️ No se requiere compactación (historial corto)"
+	}
+	if err := db.ClearSessionHistory(currentSlashSessionID); err != nil {
+		return fmt.Sprintf("❌ Error al compactar: %v", err)
+	}
+	for _, msg := range history[original-20:] {
+		if err := db.SaveMessage(currentSlashSessionID, msg.Role, msg.Content); err != nil {
+			return fmt.Sprintf("❌ Error al reescribir historial compacto: %v", err)
+		}
+	}
+	summary := fmt.Sprintf("Compacted from %d to %d messages (kept most recent).", original, 20)
+	_ = db.SaveCompactHistory(currentSlashSessionID, original, 20, summary)
+	fmt.Fprintf(os.Stderr, "[slash] /compact executed for session=%s original=%d compacted=%d\n", currentSlashSessionID, original, 20)
+	return "🗜️ Historial compactado y persistido"
+}
+
+func handleUndoRedo(action string) string {
+	fmt.Fprintf(os.Stderr, "[slash] /%s not implemented\n", action)
+	return fmt.Sprintf("🚫 /%s no soportado todavía: backend de acciones no implementado", action)
 }
 
 // ProcessMentions procesa menciones @ en el texto y expande el contexto
