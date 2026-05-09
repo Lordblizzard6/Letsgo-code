@@ -69,6 +69,11 @@ func (s *TaskStore) save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.saveLocked()
+}
+
+func (s *TaskStore) saveLocked() error {
+
 	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
 		return err
 	}
@@ -94,7 +99,7 @@ func (s *TaskStore) create(description string) *Task {
 	}
 
 	s.Tasks[task.ID] = task
-	s.save()
+	_ = s.saveLocked()
 
 	return task
 }
@@ -124,7 +129,7 @@ func (s *TaskStore) update(id string, updates map[string]interface{}) (*Task, er
 	}
 
 	task.UpdatedAt = time.Now()
-	s.save()
+	_ = s.saveLocked()
 
 	return task, nil
 }
@@ -149,7 +154,7 @@ func (s *TaskStore) delete(id string) error {
 	}
 
 	delete(s.Tasks, id)
-	return s.save()
+	return s.saveLocked()
 }
 
 func generateTaskID() string {
