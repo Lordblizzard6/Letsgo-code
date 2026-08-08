@@ -137,7 +137,7 @@ func newPendingIndicator() *pendingIndicator {
 	p.label.Importance = widget.WarningImportance
 	p.label.TextStyle = fyne.TextStyle{Monospace: true}
 	p.label.Hidden = true
-	p.root = container.NewHBox(widget.NewIcon(theme.ListIcon()), p.label)
+	p.root = container.NewHBox(widget.NewIcon(iconFor("approval")), p.label)
 	p.ExtendBaseWidget(p)
 	return p
 }

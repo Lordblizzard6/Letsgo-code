@@ -21,6 +21,7 @@ type pluginsView struct {
 	registry   *plugins.Registry
 	listNames  []string
 	pluginList *widget.List
+	center     *emptyAware
 	selected   string
 }
 
@@ -70,10 +71,11 @@ func newPluginsView(win fyne.Window) *pluginsView {
 		widget.NewButton("Refresh", v.refresh),
 	)
 
+	v.center = newEmptyAware(v.pluginList, "No hay plugins instalados.", "Instalar…", v.installPrompt)
 	v.root = container.NewBorder(
 		actions,
 		nil, nil, nil,
-		v.pluginList,
+		v.center.content(),
 	)
 	v.refresh()
 	return v
@@ -91,6 +93,9 @@ func (v *pluginsView) refresh() {
 	}
 	sort.Strings(v.listNames)
 	v.pluginList.Refresh()
+	if v.center != nil {
+		v.center.setEmpty(len(v.listNames) == 0)
+	}
 }
 
 // reloadSelected reloads the selected plugin.

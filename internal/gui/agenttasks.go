@@ -22,15 +22,12 @@ type agentTasksView struct {
 	root   *fyne.Container
 	list   *widget.List
 	tasks  []agentTask
-	notice *widget.Label
+	center *emptyAware
 }
 
 // newAgentTasksView builds the parallel sub-agent panel.
 func newAgentTasksView() *agentTasksView {
 	v := &agentTasksView{}
-
-	v.notice = widget.NewLabel("No parallel agent tasks yet.\nAsk the agent to split work across sub-agents and progress appears here.")
-	v.notice.Wrapping = fyne.TextWrapWord
 
 	v.list = widget.NewList(
 		func() int { return len(v.tasks) },
@@ -49,10 +46,10 @@ func newAgentTasksView() *agentTasksView {
 		},
 	)
 
-	v.root = container.NewBorder(
-		v.notice, nil, nil, nil,
-		container.NewScroll(v.list),
-	)
+	// US4 (T032): reuse the shared empty-state helper instead of a hand-rolled
+	// label so the surface meets contracts §5/§10 (empty + CTA).
+	v.center = newEmptyAware(container.NewScroll(v.list), "Todavía no hay tareas.", "", nil)
+	v.root = container.NewBorder(nil, nil, nil, nil, v.center.content())
 	return v
 }
 
@@ -92,13 +89,9 @@ func (v *agentTasksView) summary() string {
 	return fmt.Sprintf("sub-agents: %d running, %d complete", running, done)
 }
 
-// refresh repaints the list and toggles the empty-state notice.
+// refresh repaints the list and toggles the empty-state overlay (US4).
 func (v *agentTasksView) refresh() {
 	sort.SliceStable(v.tasks, func(i, j int) bool { return v.tasks[i].ID < v.tasks[j].ID })
 	v.list.Refresh()
-	if len(v.tasks) == 0 {
-		v.notice.Show()
-	} else {
-		v.notice.Hide()
-	}
+	v.center.setEmpty(len(v.tasks) == 0)
 }

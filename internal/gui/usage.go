@@ -154,6 +154,7 @@ type usageView struct {
 	cards         []*cardLabel
 	provTable     *widget.Table
 	budget        *widget.ProgressBar
+	center        *emptyAware
 
 	providerRows map[string]providerUsage
 	rowOrder     []string
@@ -249,16 +250,18 @@ func newUsageView(win fyne.Window) *usageView {
 	refresh := widget.NewButton("Actualizar", v.refresh)
 	top.Add(refresh)
 
+	dashboard := container.NewVBox(
+		grid,
+		widget.NewLabelWithStyle("Por proveedor", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		v.provTable,
+		widget.NewLabelWithStyle("Presupuesto", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		v.budget,
+	)
+	v.center = newEmptyAware(dashboard, "Sin actividad registrada hoy.", "", nil)
 	v.root = container.NewBorder(
 		top,
 		nil, nil, nil,
-		container.NewVBox(
-			grid,
-			widget.NewLabelWithStyle("Por proveedor", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			v.provTable,
-			widget.NewLabelWithStyle("Presupuesto", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			v.budget,
-		),
+		v.center.content(),
 	)
 	return v
 }
@@ -300,6 +303,9 @@ func (v *usageView) refresh() {
 	}
 	v.provTable.Length = func() (int, int) { return len(v.rowOrder) + 1, 4 }
 	v.provTable.Refresh()
+	if v.center != nil {
+		v.center.setEmpty(len(v.rowOrder) == 0 && h.cost == 0)
+	}
 }
 
 // startOfToday rounds the clock to local midnight, the usage period start.

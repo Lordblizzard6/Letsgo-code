@@ -71,3 +71,52 @@ func asLoadingSurface(obj fyne.CanvasObject) (*loadingSurface, bool) {
 	l, ok := obj.(*loadingSurface)
 	return l, ok
 }
+
+// emptyAware stacks the surface content with a hidden empty-state layer.
+// Surfaces call setEmpty(true) from their refresh when there is no data, so
+// an empty list never renders as a bare blank panel; the content underneath
+// is preserved for the next refresh (contracts/ui-contract §5, §10).
+type emptyAware struct {
+	base    fyne.CanvasObject
+	empty   fyne.CanvasObject
+	cta     *widget.Button
+	root    *fyne.Container
+}
+
+// newEmptyAware wraps content with an optional empty state + CTA button.
+func newEmptyAware(content fyne.CanvasObject, msg, ctaText string, onCTA func()) *emptyAware {
+	body := []fyne.CanvasObject{
+		widget.NewLabelWithStyle(msg, fyne.TextAlignCenter, fyne.TextStyle{}),
+	}
+	var btn *widget.Button
+	if ctaText != "" {
+		btn = widget.NewButton(ctaText, func() {
+			if onCTA != nil {
+				onCTA()
+			}
+		})
+		body = append(body, btn)
+	}
+	empty := container.NewCenter(container.NewVBox(body...))
+	e := &emptyAware{
+		base:  content,
+		empty: empty,
+		cta:   btn,
+		root:  container.NewStack(content, empty),
+	}
+	e.empty.Hide()
+	return e
+}
+
+// setEmpty toggles the empty overlay; content underneath never disappears.
+func (e *emptyAware) setEmpty(b bool) {
+	if b {
+		e.empty.Show()
+	} else {
+		e.empty.Hide()
+	}
+	e.root.Refresh()
+}
+
+// content returns the stacked surface root.
+func (e *emptyAware) content() fyne.CanvasObject { return e.root }

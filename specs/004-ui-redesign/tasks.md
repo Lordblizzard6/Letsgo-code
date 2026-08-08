@@ -25,10 +25,10 @@
 
 **Proposito**: verificar linea base y preparar los helpers visuales compartidos que usan todos los stories.
 
-- [ ] T001 Verificar la linea base: ejecutar `go vet ./...` y `go build ./...`; guardar el resultado de la suite headless actual (`go test ./internal/gui/... ./internal/config/...`) como referencia verde para las puertas de regresion (Gate B).
-- [ ] T002 Implementar `tooltip(label, shortcut) fyne.CanvasObject` en `internal/gui/tooltips.go` con el formato "Label (Alt+N)" y su test en `internal/gui/tooltips_test.go`.
-- [ ] T003 [P] Implementar `iconFor(id string) fyne.Resource` en `internal/gui/icons.go` con el mapeo de los 10 destinos (chat, git, tasks, mcp, plugins, settings, usage, help, theme, account) y fallback a `theme.IconName` correspondiente cuando el SVG no existe; test en `icons_test.go`.
-- [ ] T004 [P] Implementar `emptyState(msg, ctaText, onCTA)` y `loadingState(content, refreshing)` en `internal/gui/empty.go` conforme a `ui-contract.md` seccion 10, con test base de cada helper en `empty_test.go`.
+- [x] T001 Verificar la linea base: ejecutar `go vet ./...` y `go build ./...`; guardar el resultado de la suite headless actual (`go test ./internal/gui/... ./internal/config/...`) como referencia verde para las puertas de regresion (Gate B).
+- [x] T002 Implementar `tooltip(label, shortcut) fyne.CanvasObject` en `internal/gui/tooltips.go` con el formato "Label (Alt+N)" y su test en `internal/gui/tooltips_test.go`.
+- [x] T003 [P] Implementar `iconFor(id string) fyne.Resource` en `internal/gui/icons.go` con el mapeo de los 10 destinos (chat, git, tasks, mcp, plugins, settings, usage, help, theme, account) y fallback a `theme.IconName` correspondiente cuando el SVG no existe; test en `icons_test.go`.
+- [x] T004 [P] Implementar `emptyState(msg, ctaText, onCTA)` y `loadingState(content, refreshing)` en `internal/gui/empty.go` conforme a `ui-contract.md` seccion 10, con test base de cada helper en `empty_test.go`.
 
 **Checkpoint**: helpers (tooltip, iconos, empty/loading) disponibles y testeados; todos los stories pueden apoyarse en ellos.
 
@@ -122,15 +122,15 @@
 
 ### Tests (contrato §11)
 
-- [ ] T028 [P] [US4] Anadir `TestPaletteContrast` en `internal/gui/theme_test.go` — itera pares base (dark+light) y falla si texto <4.5:1 o no-texto <3:1 (palette smoke).
-- [ ] T029 [P] [US4] Anadir `TestEmptyStatesAllSurfaces` en `internal/gui/empty_test.go`: 6 superficies con empty+CTA; refresh conserva el contenido previo.
+- [x] T028 [P] [US4] Anadir `TestPaletteContrast` en `internal/gui/theme_test.go` — itera pares base (dark+light) y falla si texto <4.5:1 o no-texto <3:1 (palette smoke).
+- [x] T029 [P] [US4] Anadir `TestEmptyStatesAllSurfaces` en `internal/gui/empty_test.go`: 6 superficies con empty+CTA; refresh conserva el contenido previo.
 
 ### Implementacion
 
-- [ ] T030 [US4] Fix contraste: `lightPlaceholder` -> ~`#5C6B7A` y ajustar `darkBorder` (-> ~`#2E3A48` si hace falta) en `internal/gui/theme.go` hasta pasar `TestPaletteContrast`.
-- [ ] T031 [US4] Composer ring y avatar: reemplazar constantes oscuras por tokens del tema (`theme.FocusColor()`, `theme.ForegroundColor()`, surface) en `composer.go` y `rail.go` para tema claro.
-- [ ] T032 [P] [US4] Aplicar los helpers de T004 a las 6 superficies (`sessions.go`, `mcpview.go`, `pluginsview.go`, `agenttasks.go`, `gitview.go`, `usage.go`) con textos/CTAs de `ui-contract` seccion 10; el `loadingState` envuelve los refrescos async (conservar contenido previo + "Refrescando...").
-- [ ] T033 [P] [US4] Sustituir iconos genericos por los SVG de `icons.go` en superficies (rail, approval, chips) sin romper el fallback + tooltips.
+- [x] T030 [US4] Fix contraste: `lightPlaceholder` -> ~`#5C6B7A` y ajustar `darkBorder` (-> ~`#2E3A48` si hace falta) en `internal/gui/theme.go` hasta pasar `TestPaletteContrast`.
+- [x] T031 [US4] Composer ring y avatar: reemplazar constantes oscuras por tokens del tema (`theme.FocusColor()`, `theme.ForegroundColor()`, surface) en `composer.go` y `rail.go` para tema claro.
+- [x] T032 [P] [US4] Aplicar los helpers de T004 a las 6 superficies (`sessions.go`, `mcpview.go`, `pluginsview.go`, `agenttasks.go`, `gitview.go`, `usage.go`) con textos/CTAs de `ui-contract` seccion 10; el `loadingState` envuelve los refrescos async (conservar contenido previo + "Refrescando...").
+- [x] T033 [P] [US4] Sustituir iconos genericos por los SVG de `icons.go` en superficies (rail, approval, chips) sin romper el fallback + tooltips.
 
 **Checkpoint**: todos los stories implementados y verificables.
 
@@ -140,10 +140,10 @@
 
 **Propor**: regresion completa, documentacion y checklist.
 
-- [ ] T034 [P] Actualizar `quickstart.md` (journeys) y `contracts/ui-contract.md` si algo cambia de firma tras implementacion.
-- [ ] T035 [P] Limpiar: recorrer `internal/gui/*.go` para borrar constantes muertas y mantener `usageHistogram.String` solo como fallback/debug.
-- [ ] T036 [P] Smoke de regresion: ampliar `shell_smoke_test.go` y ejecutar toda la suite (gui y config) + `go build ./...`: 0 regresiones (Gate B).
-- [ ] T037 Ejecutar las validaciones de `quickstart.md` (J1-J4) y marcar los checkboxes SC-001..007.
+- [x] T034 [P] Actualizar `quickstart.md` (journeys) y `contracts/ui-contract.md` si algo cambia de firma tras implementacion.
+- [x] T035 [P] Limpiar: recorrer `internal/gui/*.go` para borrar constantes muertas y mantener `usageHistogram.String` solo como fallback/debug.
+- [x] T036 [P] Smoke de regresion: ampliar `shell_smoke_test.go` y ejecutar toda la suite (gui y config) + `go build ./...`: 0 regresiones (Gate B).
+- [x] T037 Ejecutar las validaciones de `quickstart.md` (J1-J4) y marcar los checkboxes SC-001..007.
 
 ---
 

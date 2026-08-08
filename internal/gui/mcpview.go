@@ -21,6 +21,7 @@ type mcpView struct {
 	manager    *mcp.Manager
 	listNames  []string
 	serverList *widget.List
+	center     *emptyAware
 	stateLbl   *widget.Label
 	detailLbl  *widget.Label
 	toolLbl    *widget.Label
@@ -78,6 +79,8 @@ func newMCPView(win fyne.Window) *mcpView {
 	)
 
 	left := container.NewBorder(nil, nil, nil, nil, v.serverList)
+	v.center = newEmptyAware(v.serverList, "No hay servidores MCP configurados.", "Añadir servidor", v.addServer)
+	left = container.NewBorder(nil, nil, nil, nil, v.center.content())
 
 	right := container.NewBorder(
 		container.NewVBox(
@@ -113,6 +116,9 @@ func (v *mcpView) refresh() {
 	}
 	sort.Strings(v.listNames)
 	v.serverList.Refresh()
+	if v.center != nil {
+		v.center.setEmpty(len(v.listNames) == 0)
+	}
 	v.stateLbl.SetText("")
 	v.detailLbl.SetText("")
 	v.toolLbl.SetText("")

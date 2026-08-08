@@ -49,7 +49,7 @@ var (
 	lightBorder      = color.NRGBA{R: 0xC9, G: 0xD2, B: 0xDC, A: 0xFF}
 	lightForeground  = color.NRGBA{R: 0x1C, G: 0x2A, B: 0x3A, A: 0xFF}
 	lightSecondary   = color.NRGBA{R: 0x44, G: 0x50, B: 0x60, A: 0xFF}
-	lightPlaceholder = color.NRGBA{R: 0x8A, G: 0x94, B: 0xA0, A: 0xFF}
+	lightPlaceholder = color.NRGBA{R: 0x5C, G: 0x6B, B: 0x7A, A: 0xFF}
 	lightSelection   = color.NRGBA{R: 0xBF, G: 0xDB, B: 0xFF, A: 0xFF}
 	lightDisabled    = color.NRGBA{R: 0xB9, G: 0xC2, B: 0xCC, A: 0xFF}
 	lightHover       = color.NRGBA{R: 0xE2, G: 0xE9, B: 0xF2, A: 0xFF}
@@ -58,11 +58,9 @@ var (
 	lightWarning     = color.NRGBA{R: 0x9A, G: 0x67, B: 0x00, A: 0xFF}
 	lightError       = color.NRGBA{R: 0xD1, G: 0x24, B: 0x2F, A: 0xFF}
 
-	// Legacy ANSI accents still used by terminals/chips (kept for 002).
-	colorCyan    = color.NRGBA{R: 0x6B, G: 0xE3, B: 0xE3, A: 0xFF}
+	// Status accent used by the account dot / connection states (003 legacy
+	// chips, retained for rail avatar status).
 	colorGreen   = color.NRGBA{R: 0x9E, G: 0xCE, B: 0x6A, A: 0xFF}
-	colorYellow  = color.NRGBA{R: 0xE5, G: 0xC0, B: 0x7B, A: 0xFF}
-	colorMagenta = color.NRGBA{R: 0xC6, G: 0x8E, B: 0xE6, A: 0xFF}
 	colorOrange  = color.NRGBA{R: 0xF5, G: 0xA6, B: 0x5C, A: 0xFF}
 )
 
@@ -91,6 +89,24 @@ func cardBorderColor() color.Color {
 		t.forcedVariant = theme.VariantLight
 	}
 	return t.Color(theme.ColorNameInputBorder, t.variant())
+}
+
+// railSurfaceColor and railAccentColor resolve the rail well / LetsGO accent
+// tokens for the active variant (US4, T031: no hardcoded dark constants).
+func railSurfaceColor() color.Color {
+	t := &terminalTheme{}
+	if config.AppConfig.ThemeVariant == "light" {
+		t.forcedVariant = theme.VariantLight
+	}
+	return t.Color(ThemeColorNameRail, t.variant())
+}
+
+func railAccentColor() color.Color {
+	t := &terminalTheme{}
+	if config.AppConfig.ThemeVariant == "light" {
+		t.forcedVariant = theme.VariantLight
+	}
+	return t.Color(accentThemeColor, t.variant())
 }
 
 // Shell theme tokens (003): three background levels + rail surface.

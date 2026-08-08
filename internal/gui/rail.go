@@ -137,7 +137,7 @@ func (r *railView) rebuild() {
 		if r.collapsed {
 			label = ""
 		}
-		tb := newTooltipButton(label, theme.Icon(slot.icon), r.canvas,
+		tb := newTooltipButton(label, iconFor(slot.id), r.canvas,
 			slot.label, slot.shortcut, func() { r.dispatch(slot.id) })
 		mark := canvas.NewRectangle(AccentColor)
 		mark.Hide()
@@ -233,10 +233,10 @@ func (a *railAvatar) MinSize() fyne.Size {
 }
 
 func (a *railAvatar) CreateRenderer() fyne.WidgetRenderer {
-	circle := canvas.NewCircle(darkWell)
-	circle.StrokeColor = AccentColor
+	circle := canvas.NewCircle(railSurfaceColor())
+	circle.StrokeColor = railAccentColor()
 	circle.StrokeWidth = 2
-	label := canvas.NewText("GO", AccentColor)
+	label := canvas.NewText("GO", railAccentColor())
 	label.TextSize = TextSizeLarge
 	label.TextStyle = fyne.TextStyle{Bold: true}
 	dot := canvas.NewCircle(colorGreen)
@@ -265,7 +265,7 @@ type railAvatarRenderer struct {
 }
 
 func (r *railAvatarRenderer) apply() {
-	r.label.Color = AccentColor
+	r.label.Color = railAccentColor()
 	r.dot.FillColor = r.a.dotColor
 	r.Refresh()
 }
@@ -288,7 +288,7 @@ func (r *railAvatarRenderer) Objects() []fyne.CanvasObject {
 }
 
 func (r *railAvatarRenderer) Refresh() {
-	r.label.Color = AccentColor
+	r.label.Color = railAccentColor()
 	r.dot.FillColor = r.a.dotColor
 	if r.a.Size() != r.lastBound {
 		r.Layout(r.a.Size())

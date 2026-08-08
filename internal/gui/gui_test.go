@@ -1298,6 +1298,8 @@ func collectTexts(obj fyne.CanvasObject, out *[]string) {
 		}
 	case *proseClamp:
 		collectTexts(o.CanvasObject, out)
+	case *loadingSurface:
+		collectTexts(o.base(), out)
 	case *container.Scroll:
 		collectTexts(o.Content, out)
 	case *widget.Card:

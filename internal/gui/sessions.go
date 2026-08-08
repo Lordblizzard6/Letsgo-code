@@ -20,6 +20,9 @@ type sessionsView struct {
 	srch *widget.Entry
 	root *fyne.Container
 
+	// empty aware stack (US4, T032): list + hidden empty-state overlay.
+	center *emptyAware
+
 	sessions []db.Session
 	onSelect func(id string)
 	onNew    func()
@@ -60,11 +63,22 @@ func newSessionsView(win fyne.Window) *sessionsView {
 	}
 	s.list.OnUnselected = func(widget.ListItemID) {}
 
+	s.list.OnUnselected = func(widget.ListItemID) {}
+
+	// US4 (T032): empty sessions show a friendly empty state with a "New"
+	// CTA instead of a bare list; the list underneath is preserved for the
+	// next reload.
+	s.center = newEmptyAware(s.list, "No hay conversaciones todavía.", "Nueva conversación", func() {
+		if s.onNew != nil {
+			s.onNew()
+		}
+	})
+
 	s.root = container.NewBorder(
 		s.srch,
 		newBtn,
 		nil, nil,
-		s.list,
+		s.center.content(),
 	)
 	return s
 }
@@ -83,6 +97,7 @@ func (s *sessionsView) reload() {
 		s.sessions = filterSessionsBySearch(sessions, query)
 	}
 	s.list.Refresh()
+	s.center.setEmpty(len(s.sessions) == 0)
 }
 
 // selectSession highlights the given session in the list.

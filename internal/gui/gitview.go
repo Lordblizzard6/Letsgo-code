@@ -32,6 +32,8 @@ type gitView struct {
 	branchEntry *widget.Entry
 	branchList  *widget.List
 	branches    []string
+	center  *emptyAware
+	loading fyne.CanvasObject
 
 	commitMsg *widget.Entry
 	diffLabel *widget.Label
@@ -102,7 +104,9 @@ func newGitView(win fyne.Window) *gitView {
 	)
 
 	scroll := container.NewScroll(container.NewVBox(top, actions, widget.NewSeparator(), v.diffLabel))
-	v.root = container.NewBorder(nil, nil, nil, nil, scroll)
+	v.loading = loadingState(scroll, false)
+	v.center = newEmptyAware(v.loading, "No hay repositorio.", "Abrir carpeta…", nil)
+	v.root = container.NewBorder(nil, nil, nil, nil, v.center.content())
 	v.refresh()
 	return v
 }
@@ -118,8 +122,18 @@ func (v *gitView) setDir(dir string) {
 	v.refresh()
 }
 
-// refresh re-reads branches and working tree status.
+// refresh re-reads branches and working tree status. The loading surface
+// wraps the slow (git exec) path so async callers keep the previous content
+// visible plus the "Refrescando…" indicator (contracts §5).
 func (v *gitView) refresh() {
+	if surf, ok := asLoadingSurface(v.loading); ok {
+		surf.setRefreshing(true)
+	}
+	defer func() {
+		if surf, ok := asLoadingSurface(v.loading); ok {
+			surf.setRefreshing(false)
+		}
+	}()
 	out, err := runGit(v.dir, "branch", "-a")
 	var branches []string
 	if err == nil {
@@ -132,6 +146,9 @@ func (v *gitView) refresh() {
 	}
 	v.branches = branches
 	v.branchList.Refresh()
+	if v.center != nil {
+		v.center.setEmpty(err != nil)
+	}
 
 	status, err := runGit(v.dir, "status", "--porcelain")
 	if err != nil {

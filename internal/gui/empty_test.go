@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -78,4 +79,76 @@ func TestLoadingStateKeepsContent(t *testing.T) {
 	if !ls.refreshing.Hidden {
 		t.Error("refreshing indicator should hide after setRefreshing(false)")
 	}
+}
+
+// emptyAwareHasEmpty runs a helper against each of the six surfaces and
+// asserts the empty message renders.
+func emptyAwareHasEmpty(t *testing.T, obj fyne.CanvasObject, msg string) {
+	t.Helper()
+	root, ok := obj.(*fyne.Container)
+	if !ok {
+		t.Fatalf("surface root is %T, want *fyne.Container", obj)
+	}
+	texts := widgetTexts(root)
+	for _, s := range texts {
+		if strings.Contains(s, msg) {
+			return
+		}
+	}
+	t.Fatalf("empty message %q missing from %v", msg, texts)
+}
+
+// TestEmptyStatesAllSurfaces verifies US4 (T029): the six surfaces show a
+// shared empty/CTA state when they have no data, and the wrapped content is
+// preserved so refresh never blanks the panel.
+func TestEmptyStatesAllSurfaces(t *testing.T) {
+test.NewApp()
+	mcp := newMCPView(test.NewWindow(nil))
+	defer mcp.win.Close()
+	if mcp.center == nil {
+		t.Fatal("mcpView must own an emptyAware")
+	}
+	mcp.center.setEmpty(true)
+	emptyAwareHasEmpty(t, mcp.center.content(), "No hay servidores MCP configurados.")
+
+	pl := newPluginsView(test.NewWindow(nil))
+	defer pl.win.Close()
+	if pl.center == nil {
+		t.Fatal("pluginsView must own an emptyAware")
+	}
+	pl.center.setEmpty(true)
+	emptyAwareHasEmpty(t, pl.center.content(), "No hay plugins instalados.")
+
+	tasks := newAgentTasksView()
+	if tasks.center == nil {
+		t.Fatal("agentTasksView must own an emptyAware")
+	}
+	tasks.center.setEmpty(true)
+	emptyAwareHasEmpty(t, tasks.center.content(), "Todavía no hay tareas.")
+
+	git := newGitView(test.NewWindow(nil))
+	defer git.win.Close()
+	if git.center == nil {
+		t.Fatal("gitView must own an emptyAware")
+	}
+	git.center.setEmpty(true)
+	emptyAwareHasEmpty(t, git.center.content(), "No hay repositorio.")
+
+	// Session sidebar delegates empty state to the shared helper too.
+	sv := newSessionsView(test.NewWindow(nil))
+	defer sv.win.Close()
+	if sv.center == nil {
+		t.Fatal("sessionsView must own an emptyAware")
+	}
+	sv.center.setEmpty(true)
+	emptyAwareHasEmpty(t, sv.center.content(), "No hay conversaciones todavía.")
+
+	// Usage KPI pane shows the empty state when there is no activity.
+	uv := newUsageView(test.NewWindow(nil))
+	defer uv.win.Close()
+	if uv.center == nil {
+		t.Fatal("usageView must own an emptyAware")
+	}
+	uv.center.setEmpty(true)
+	emptyAwareHasEmpty(t, uv.center.content(), "Sin actividad registrada hoy.")
 }
