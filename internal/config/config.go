@@ -26,6 +26,29 @@ type Config struct {
 	Temperature float64 `mapstructure:"temperature"`
 	MaxTokens   int     `mapstructure:"max_tokens"`
 	Stream      bool    `mapstructure:"stream"`
+
+	// AutoApprove persists per-category tool auto-approval (bash, file-edit, web).
+	AutoApprove map[string]bool `mapstructure:"auto_approve"`
+
+	// Statusline persists the configurable status bar fields (FR-018).
+	Statusline StatuslineConfig `mapstructure:"statusline"`
+
+	// Rail persists the shell navigation bar appearance (003).
+	Rail RailConfig `mapstructure:"rail"`
+
+	// ThemeVariant is the app theme: "dark" (default) or "light" (FR-007).
+	ThemeVariant string `mapstructure:"theme"`
+}
+
+// RailConfig controls the vertical navigation rail of the shell (FR-002).
+type RailConfig struct {
+	Collapsed bool `mapstructure:"collapsed"`
+}
+
+// StatuslineConfig controls the configurable status line (FR-018).
+type StatuslineConfig struct {
+	Show   bool     `mapstructure:"show"`
+	Fields []string `mapstructure:"fields"`
 }
 
 var AppConfig Config
@@ -51,6 +74,10 @@ func LoadConfig() error {
 	viper.SetDefault("temperature", 0.7)
 	viper.SetDefault("max_tokens", 4096)
 	viper.SetDefault("stream", true)
+	viper.SetDefault("statusline.show", true)
+	viper.SetDefault("statusline.fields", []string{"model", "mode", "context", "rate", "version"})
+	viper.SetDefault("rail.collapsed", false)
+	viper.SetDefault("theme", "dark")
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// Create default config file automatically
@@ -81,8 +108,21 @@ func SaveConfig() error {
 	viper.Set("temperature", AppConfig.Temperature)
 	viper.Set("max_tokens", AppConfig.MaxTokens)
 	viper.Set("stream", AppConfig.Stream)
+	viper.Set("auto_approve", AppConfig.AutoApprove)
+	viper.Set("statusline.show", AppConfig.Statusline.Show)
+	viper.Set("statusline.fields", AppConfig.Statusline.Fields)
+	viper.Set("rail.collapsed", AppConfig.Rail.Collapsed)
+	viper.Set("theme", AppConfig.ThemeVariant)
 
-	return viper.WriteConfig()
+	if err := viper.WriteConfig(); err != nil {
+		return err
+	}
+
+	// Restrict the config file to the owner only; it contains API keys.
+	if err := restrictConfigPermissions(viper.ConfigFileUsed()); err != nil {
+		return fmt.Errorf("restrict config permissions: %w", err)
+	}
+	return nil
 }
 
 // GetAPIKeyForProvider returns the appropriate API key for the given provider

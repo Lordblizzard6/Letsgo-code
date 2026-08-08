@@ -27,6 +27,10 @@ func InitDB() error {
 		return err
 	}
 
+	if DB != nil {
+		_ = DB.Close()
+	}
+
 	var err error
 	DB, err = sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -68,6 +72,13 @@ func InitDB() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE TABLE IF NOT EXISTS session_grants (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id TEXT NOT NULL,
+			category TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(session_id, category)
+		);`,
 		`CREATE TABLE IF NOT EXISTS compact_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			session_id TEXT,
@@ -80,6 +91,8 @@ func InitDB() error {
 		`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_session_timestamp ON messages(session_id, timestamp DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_context_files_session ON context_files(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_session_grants_session ON session_grants(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_session_grants_cat ON session_grants(category);`,
 	}
 
 	for _, query := range queries {
@@ -87,6 +100,10 @@ func InitDB() error {
 			return err
 		}
 	}
+
+	// Optional migration: kind column on messages (user:steer/queued/plan_instructions).
+	// Safe to re-run; fails silently when the column already exists.
+	_, _ = DB.Exec(`ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'user'`)
 
 	return nil
 }
@@ -106,7 +123,7 @@ func SaveMessage(sessionID, role string, content interface{}) error {
 func GetHistory(sessionID string) ([]Message, error) {
 	dbMu.RLock()
 	defer dbMu.RUnlock()
-	rows, err := DB.Query("SELECT id, role, content, timestamp FROM messages WHERE session_id = ? ORDER BY timestamp ASC", sessionID)
+	rows, err := DB.Query("SELECT id, role, content, timestamp, kind FROM messages WHERE session_id = ? ORDER BY timestamp ASC, id ASC", sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,18 +132,18 @@ func GetHistory(sessionID string) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var id int64
-		var role, contentJSON string
+		var role, contentJSON, kind string
 		var timestamp time.Time
-		if err := rows.Scan(&id, &role, &contentJSON, &timestamp); err != nil {
+		if err := rows.Scan(&id, &role, &contentJSON, &timestamp, &kind); err != nil {
 			return nil, err
 		}
 
 		var content interface{}
 		err = json.Unmarshal([]byte(contentJSON), &content)
 		if err != nil {
-			continue
+			content = contentJSON
 		}
-		messages = append(messages, Message{ID: id, Role: role, Content: content, Timestamp: timestamp})
+		messages = append(messages, Message{ID: id, Role: role, Content: content, Timestamp: timestamp, Kind: kind})
 	}
 	return messages, nil
 }
@@ -243,6 +260,7 @@ type Message struct {
 	Role      string      `json:"role"`
 	Content   interface{} `json:"content"`
 	Timestamp time.Time   `json:"timestamp"`
+	Kind      string      `json:"kind,omitempty"`
 }
 
 type SearchMessageResult struct {
@@ -459,4 +477,112 @@ func ClearSessionHistory(sessionID string) error {
 // SetActiveSession is an alias for ResumeSession for API compatibility
 func SetActiveSession(sessionID string) error {
 	return ResumeSession(sessionID)
+}
+
+// SessionGrant is a per-session approval rule (category → allowed) (FR-016/017).
+type SessionGrant struct {
+	SessionID string
+	Category  string
+	CreatedAt time.Time
+}
+
+// GrantCategory persists an approval grant for (sessionID, category) (upsert).
+func GrantCategory(sessionID, category string) error {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	_, err := DB.Exec(
+		`INSERT INTO session_grants (session_id, category) VALUES (?, ?)
+		 ON CONFLICT(session_id, category) DO UPDATE SET created_at = CURRENT_TIMESTAMP`,
+		sessionID, category)
+	return err
+}
+
+// RevokeCategory removes an approval grant for (sessionID, category).
+func RevokeCategory(sessionID, category string) error {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	_, err := DB.Exec(`DELETE FROM session_grants WHERE session_id = ? AND category = ?`, sessionID, category)
+	return err
+}
+
+// ListGrants returns all grants for a session (FR-017).
+func ListGrants(sessionID string) ([]SessionGrant, error) {
+	dbMu.RLock()
+	defer dbMu.RUnlock()
+	rows, err := DB.Query(
+		`SELECT session_id, category, created_at FROM session_grants WHERE session_id = ? ORDER BY created_at DESC`,
+		sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var grants []SessionGrant
+	for rows.Next() {
+		var g SessionGrant
+		if err := rows.Scan(&g.SessionID, &g.Category, &g.CreatedAt); err != nil {
+			continue
+		}
+		grants = append(grants, g)
+	}
+	return grants, nil
+}
+
+// IsGranted reports whether (sessionID, category) has an active grant.
+func IsGranted(sessionID, category string) (bool, error) {
+	dbMu.RLock()
+	defer dbMu.RUnlock()
+	var n int
+	err := DB.QueryRow(
+		`SELECT COUNT(*) FROM session_grants WHERE session_id = ? AND category = ?`,
+		sessionID, category).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// SaveMessageKind persists a message with an explicit kind (user:steer/queued/plan_instructions).
+func SaveMessageKind(sessionID, role, content string, kind string) error {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	_, err := DB.Exec(
+		`INSERT INTO messages (session_id, role, content, kind) VALUES (?, ?, ?, ?)`,
+		sessionID, role, content, kind)
+	return err
+}
+
+// ForkSession creates an independent copy of a session containing all messages
+// up to and including messageID. The original session is never modified; grants
+// and memory are NOT copied (data-model.md §3).
+func ForkSession(sourceID string, messageID int64) (string, error) {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+
+	var name string
+	err := DB.QueryRow(`SELECT name FROM sessions WHERE id = ?`, sourceID).Scan(&name)
+	if err != nil {
+		return "", err
+	}
+
+	newID := fmt.Sprintf("sess_%d", time.Now().UnixNano())
+	if _, err := DB.Exec(
+		`INSERT INTO sessions (id, name, created_at, updated_at, project_path, is_active)
+		 VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, (SELECT project_path FROM sessions WHERE id = ?), 1)`,
+		newID, "Fork de "+name, sourceID); err != nil {
+		return "", err
+	}
+
+	_, err = DB.Exec(
+		`INSERT INTO messages (session_id, role, content, timestamp, tokens_input, tokens_output, cost_usd, kind)
+		 SELECT ?, role, content, timestamp, tokens_input, tokens_output, cost_usd, kind
+		 FROM messages
+		 WHERE session_id = ? AND id <= ?
+		 ORDER BY id ASC`,
+		newID, sourceID, messageID)
+	if err != nil {
+		return "", err
+	}
+
+	return newID, nil
 }

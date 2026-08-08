@@ -14,6 +14,12 @@ func initSearchDB(t *testing.T) string {
 		db.DB = nil
 	}
 	t.Setenv("TEST_DB_PATH", t.TempDir()+"/history.db")
+	t.Cleanup(func() {
+		if db.DB != nil {
+			_ = db.DB.Close()
+			db.DB = nil
+		}
+	})
 	if err := db.InitDB(); err != nil {
 		t.Fatalf("InitDB failed: %v", err)
 	}

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -11,26 +10,25 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 	"github.com/user/go-claude-code/internal/api"
 	"github.com/user/go-claude-code/internal/config"
 	"github.com/user/go-claude-code/internal/db"
+	"github.com/user/go-claude-code/internal/engine"
 	"github.com/user/go-claude-code/internal/tools"
 )
 
-type deltaMsg string
-type toolUseMsg api.ToolUse
-type toolResultMsg api.ToolResult
-type toolInputDeltaMsg struct {
-	id    string
-	delta string
+// engineEventMsg wraps an engine event for the bubbletea program.
+type engineEventMsg struct {
+	ev engine.Event
 }
-type usageMsg struct {
-	input  int
-	output int
-}
-type errorMsg error
-type finishMsg struct{}
+
+// tuiDriver preserves the CLI's historical behavior (tools execute without an
+// interactive prompt). It satisfies engine.PermissionDriver byte-for-byte.
+type tuiDriver struct{}
+
+func (tuiDriver) Prompt(toolName string, input any) (bool, error) { return true, nil }
+func (tuiDriver) AutoApprove(category string) bool               { return true }
+func (tuiDriver) SessionGranted(sessionID, category string) bool { return true }
 
 type mode int
 
@@ -40,13 +38,12 @@ const (
 )
 
 type model struct {
+	engine          *engine.Engine
 	sessionID       string
 	messages        []api.Message
 	input           string
 	isStreaming     bool
 	currentResponse string
-	toolInputs      map[string]string
-	pendingToolUses []api.ToolUse
 	executingTool   string
 	currentMode     mode
 	spinner         spinner.Model
@@ -54,7 +51,6 @@ type model struct {
 	width           int
 	height          int
 	viewport        viewport.Model // Usar viewport para scroll profesional
-	client          *api.Client
 	totalTokens     int
 	totalCost       float64
 	inputTokens     int
@@ -75,7 +71,6 @@ func NewModel() model {
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 
-	sessionID := uuid.New().String()
 	db.InitDB()
 
 	r, err := glamour.NewTermRenderer(
@@ -91,31 +86,32 @@ func NewModel() model {
 	vp.SetContent("")
 
 	m := model{
-		sessionID:        sessionID,
-		messages:         []api.Message{},
-		client:           createClientForCurrentModel(),
-		toolInputs:       make(map[string]string),
-		spinner:          s,
-		renderer:         r,
-		currentMode:      chatMode,
-		viewport:         vp,
-		inputHistory:     []string{},
-		historyIndex:     -1,
-		suggestions:      []string{},
-		showSuggestions:  false,
+		messages:        []api.Message{},
+		spinner:         s,
+		renderer:        r,
+		currentMode:     chatMode,
+		viewport:        vp,
+		inputHistory:    []string{},
+		historyIndex:    -1,
+		suggestions:     []string{},
+		showSuggestions: false,
 		selectedProvider: 0,
 		selectedModel:    0,
 		inModelMenu:      false,
 	}
 
+	// El engine es el único dueño del loop de conversación (FR-026).
+	m.engine = engine.New(tuiDriver{})
+
 	// PARITY: Initial Git Warning
 	if tools.IsGitRepo() {
 		status := tools.GetGitStatus()
 		if status != "" {
-			m.messages = append(m.messages, api.Message{
+			note := api.Message{
 				Role:    "assistant",
 				Content: "> ℹ️ **Note:** You have uncommitted changes in this repository. Claude will see these changes when reading files.",
-			})
+			}
+			m.messages = append(m.messages, note)
 		}
 	}
 
@@ -124,6 +120,9 @@ func NewModel() model {
 		Role:    "assistant",
 		Content: getWelcomeMessage(),
 	})
+
+	m.engine.SeedMessages(m.messages)
+	m.sessionID = m.engine.SessionID()
 
 	return m
 }
@@ -134,45 +133,12 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case usageMsg:
-		m.totalTokens += msg.input + msg.output
-		m.inputTokens += msg.input
-		m.outputTokens += msg.output
-
-		// Debug logging
-		fmt.Fprintf(os.Stderr, "[TUI Debug] usageMsg received: input=%d, output=%d, isStreaming=%v\n",
-			msg.input, msg.output, m.isStreaming)
-
-		// Si input=0 y output=0, es una señal de finalización del stream
-		if msg.input == 0 && msg.output == 0 && m.isStreaming {
-			fmt.Fprintf(os.Stderr, "[TUI Debug] Resetting isStreaming to false\n")
-			m.isStreaming = false
-			if m.currentResponse != "" {
-				m.messages = append(m.messages, api.Message{Role: "assistant", Content: m.currentResponse})
-				db.SaveMessage(m.sessionID, "assistant", m.currentResponse)
-				m.currentResponse = ""
-			}
-		}
-
-		// Track cost
-		costTracker := tools.GetCostTracker()
-		provider := "anthropic"
-		if !strings.Contains(config.AppConfig.BaseURL, "anthropic") {
-			if strings.Contains(config.AppConfig.BaseURL, "groq") {
-				provider = "groq"
-			} else {
-				provider = "openai"
-			}
-		}
-		if err := costTracker.RecordUsage(provider, config.AppConfig.Model, msg.input, msg.output); err != nil {
-			// Log error but don't interrupt user experience
-			fmt.Fprintf(os.Stderr, "Warning: failed to record usage: %v\n", err)
-		}
-		m.totalCost = costTracker.GetSessionCost()
-		return m, nil
+	case engineEventMsg:
+		return m.handleEngineEvent(msg.ev), nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
+			m.engine.Stop()
 			return m, tea.Quit
 		case "ctrl+s":
 			if m.currentMode == chatMode {
@@ -289,7 +255,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				modelID := getModelID(m.selectedProvider, m.selectedModel)
 				if modelID != "" {
 					config.AppConfig.Model = modelID
-					m.client = createClientForCurrentModel()
+					m.engine.RefreshClient()
 					m.currentMode = chatMode
 					m.inModelMenu = false
 				}
@@ -311,6 +277,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					SetSlashCommandSessionID(m.sessionID)
 					response, shouldContinue, shouldQuit := ProcessSlashCommand(input)
 					if shouldQuit {
+						m.engine.Stop()
 						return m, tea.Quit
 					}
 					if shouldContinue {
@@ -324,13 +291,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Process mentions (@file, @func, etc.)
 				input = ProcessMentions(input)
 
-				m.messages = append(m.messages, api.Message{Role: "user", Content: input})
-				db.SaveMessage(m.sessionID, "user", input)
 				m.isStreaming = true
 				m.currentResponse = ""
-				m.updateViewportContent()
-				m.viewport.GotoBottom()
-				return m, m.sendMessageCmd()
+				m.engine.Send(engine.SendMessage{Text: input, SessionID: m.sessionID})
+				return m, nil
 			}
 		case "backspace":
 			if len(m.input) > 0 && !m.isStreaming {
@@ -343,73 +307,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Actualizar sugerencias de autocompletado
 				m.updateSuggestions()
 			}
-		}
-	case deltaMsg:
-		m.currentResponse += string(msg)
-		// Actualizar viewport durante streaming para mostrar contenido en tiempo real
-		m.updateViewportContent()
-		m.viewport.GotoBottom()
-	case toolInputDeltaMsg:
-		m.toolInputs[msg.id] += msg.delta
-	case toolUseMsg:
-		tu := api.ToolUse(msg)
-		m.pendingToolUses = append(m.pendingToolUses, tu)
-		// Almacenar el nombre de la herramienta asociado al ID para recuperarlo en toolResultMsg
-		if m.toolInputs == nil {
-			m.toolInputs = make(map[string]string)
-		}
-		// Usamos un prefijo especial o un mapa dedicado para nombres de herramientas
-		m.toolInputs["_name_"+tu.ID] = tu.Name
-	case toolResultMsg:
-		res := api.ToolResult(msg)
-		m.executingTool = ""
-
-		// Recuperar el nombre de la herramienta usando el ID
-		if name, ok := m.toolInputs["_name_"+res.ToolUseID]; ok {
-			res.ToolName = name
-			delete(m.toolInputs, "_name_"+res.ToolUseID)
-		}
-
-		content := []api.ContentBlock{{Type: "tool_result", ToolResult: &res}}
-		m.messages = append(m.messages, api.Message{Role: "user", Content: content})
-		db.SaveMessage(m.sessionID, "user", content)
-
-		if len(m.pendingToolUses) == 0 {
-			m.isStreaming = true
-			return m, m.sendMessageCmd()
-		}
-		return m, nil
-	case errorMsg:
-		m.isStreaming = false
-		m.executingTool = ""
-		errorStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Bold(true)
-		var errorContent strings.Builder
-		errorContent.WriteString(errorStyle.Render("⚠️  Error") + "\n\n")
-		errorContent.WriteString(fmt.Sprintf("```\n%s\n```", msg.Error()))
-		errorContent.WriteString("\n\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(
-			"Tip: You can try:\n"+
-				"  • Checking your API key with /settings\n"+
-				"  • Verifying your internet connection\n"+
-				"  • Trying a different model with Ctrl+S"))
-		m.messages = append(m.messages, api.Message{Role: "assistant", Content: errorContent.String()})
-	case finishMsg:
-		m.isStreaming = false
-		if m.currentResponse != "" {
-			m.messages = append(m.messages, api.Message{Role: "assistant", Content: m.currentResponse})
-			db.SaveMessage(m.sessionID, "assistant", m.currentResponse)
-			m.currentResponse = ""
-		}
-
-		if len(m.pendingToolUses) > 0 {
-			var cmds []tea.Cmd
-			m.executingTool = fmt.Sprintf("%d tools", len(m.pendingToolUses))
-			for _, tu := range m.pendingToolUses {
-				cmds = append(cmds, m.executeToolCmd(tu))
-			}
-			m.pendingToolUses = []api.ToolUse{}
-			return m, tea.Batch(cmds...)
 		}
 	case spinner.TickMsg:
 		// Solo actualizar el spinner si estamos en streaming o ejecutando tools
@@ -435,6 +332,99 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	return m, cmd
+}
+
+// handleEngineEvent translates an engine event into the model's view state.
+// The engine already persists every message; the TUI only renders.
+func (m model) handleEngineEvent(ev engine.Event) model {
+	switch e := ev.(type) {
+	case engine.UserMessageAppended:
+		m.messages = append(m.messages, e.Message)
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+	case engine.StreamDelta:
+		m.currentResponse += e.Text
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+	case engine.StreamDone:
+		if m.currentResponse != "" {
+			m.messages = append(m.messages, api.Message{Role: "assistant", Content: m.currentResponse})
+		}
+		m.currentResponse = ""
+		m.isStreaming = false
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+	case engine.StreamCancelled:
+		m.isStreaming = false
+		m.executingTool = ""
+		m.currentResponse = ""
+		m.updateViewportContent()
+	case engine.ToolRequested:
+		m.executingTool = e.Name
+		m.updateViewportContent()
+	case engine.ToolExecuting:
+		m.executingTool = e.ToolCallID
+		m.updateViewportContent()
+	case engine.ToolResult:
+		m.executingTool = ""
+		resultBlock := api.ContentBlock{
+			Type: "tool_result",
+			ToolResult: &api.ToolResult{
+				ToolUseID: e.ToolCallID,
+				ToolName:  e.Name,
+				Content:   e.Content,
+				IsError:   e.IsError,
+			},
+		}
+		m.messages = append(m.messages, api.Message{Role: "user", Content: []api.ContentBlock{resultBlock}})
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+	case engine.ToolRejected:
+		m.executingTool = ""
+	case engine.ToolTimedOut:
+		m.executingTool = ""
+	case engine.UsageUpdate:
+		m.inputTokens += e.InputTokens
+		m.outputTokens += e.OutputTokens
+		m.totalTokens += e.InputTokens + e.OutputTokens
+
+		// Track cost
+		costTracker := tools.GetCostTracker()
+		provider := "anthropic"
+		if !strings.Contains(config.AppConfig.BaseURL, "anthropic") {
+			if strings.Contains(config.AppConfig.BaseURL, "groq") {
+				provider = "groq"
+			} else {
+				provider = "openai"
+			}
+		}
+		if err := costTracker.RecordUsage(provider, config.AppConfig.Model, e.InputTokens, e.OutputTokens); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to record usage: %v\n", err)
+		}
+		m.totalCost = costTracker.GetSessionCost()
+	case engine.ErrorEvent:
+		m.isStreaming = false
+		m.executingTool = ""
+		m.currentResponse = ""
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+		var errorContent strings.Builder
+		errorContent.WriteString(errorStyle.Render("⚠️  Error") + "\n\n")
+		errorContent.WriteString(fmt.Sprintf("```\n%s\n```", e.Message))
+		errorContent.WriteString("\n\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(
+			"Tip: You can try:\n"+
+				"  • Checking your API key with /settings\n"+
+				"  • Verifying your internet connection\n"+
+				"  • Trying a different model with Ctrl+S"))
+		m.messages = append(m.messages, api.Message{Role: "assistant", Content: errorContent.String()})
+		m.updateViewportContent()
+	case engine.Idle:
+		m.isStreaming = false
+		m.executingTool = ""
+		m.updateViewportContent()
+	}
+	return m
 }
 
 func (m model) View() string {
@@ -619,7 +609,7 @@ func (m model) renderChatView() string {
 	s.WriteString(m.viewport.View())
 
 	// Indicador de streaming
-	if m.isStreaming {
+	if m.isStreaming || m.executingTool != "" {
 		modelName := config.AppConfig.Model
 		if len(modelName) > 15 {
 			modelName = modelName[:12] + "..."
@@ -637,7 +627,9 @@ func (m model) renderChatView() string {
 
 		roleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
 		s.WriteString("\n" + indicator + roleStyle.Render("thinking...") + "\n")
-		s.WriteString(roleStyle.Render("Let'sGo("+modelName+"): ") + m.currentResponse + "█\n")
+		if m.currentResponse != "" {
+			s.WriteString(roleStyle.Render("Let'sGo("+modelName+"): ") + m.currentResponse + "█\n")
+		}
 	}
 
 	// Indicador de ejecución de herramientas
@@ -649,7 +641,7 @@ func (m model) renderChatView() string {
 		spinnerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
 		toolStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Italic(true)
 
-		s.WriteString(fmt.Sprintf("\n%s %s %s %s\n",
+		s.WriteString(fmt.Sprintf("%s %s %s %s\n",
 			spinnerStyle.Render(m.spinner.View()),
 			executingStyle.Render("▶"),
 			executingStyle.Render("Executing:"),
@@ -676,94 +668,23 @@ func (m model) renderChatView() string {
 
 var program *tea.Program
 
-func (m model) executeToolCmd(tu api.ToolUse) tea.Cmd {
-	return func() tea.Msg {
-		var input map[string]interface{}
-		jsonStr := m.toolInputs[tu.ID]
-		err := json.Unmarshal([]byte(jsonStr), &input)
-		if err != nil {
-			return toolResultMsg{ToolUseID: tu.ID, Content: fmt.Sprintf("Error parsing tool input: %v", err), IsError: true}
-		}
-		result, err := tools.ExecuteTool(tu.Name, input)
-		isError := false
-		if err != nil {
-			result = err.Error()
-			isError = true
-		}
-		return toolResultMsg{ToolUseID: tu.ID, Content: result, IsError: isError}
-	}
-}
-
-func (m model) sendMessageCmd() tea.Cmd {
-	return func() tea.Msg {
-		cwd, err := os.Getwd()
-		if err != nil {
-			cwd = "."
-		}
-		systemPrompt := api.GetSystemPrompt(config.AppConfig.Model, cwd)
-		prunedMessages := db.PruneContext(m.messages, 10)
-		req := api.Request{
-			Model:     config.AppConfig.Model,
-			System:    systemPrompt,
-			MaxTokens: 4096,
-			Stream:    true,
-			Messages:  prunedMessages,
-			Tools:     tools.GetToolDefinitions(),
-		}
-		err = m.client.StreamRequest(req, func(delta string) {
-			if program != nil {
-				program.Send(deltaMsg(delta))
-			}
-		}, func(tu api.ToolUse) {
-			if program != nil {
-				program.Send(toolUseMsg(tu))
-			}
-		}, func(id string, delta string) {
-			if program != nil {
-				program.Send(toolInputDeltaMsg{id: id, delta: delta})
-			}
-		}, func(in, out int) {
-			if program != nil {
-				program.Send(usageMsg{input: in, output: out})
-			}
-		})
-		if err != nil {
-			return errorMsg(err)
-		}
-		return finishMsg{}
-	}
-}
-
 func RunChat() error {
 	m := NewModel()
 	program = tea.NewProgram(m, tea.WithAltScreen())
+
+	// Pump engine events into the bubbletea program.
+	go func() {
+		for ev := range m.engine.Events() {
+			if program != nil {
+				program.Send(engineEventMsg{ev: ev})
+			}
+		}
+	}()
+
 	_, err := program.Run()
+	m.engine.Stop()
+	program = nil
 	return err
-}
-
-// createClientForCurrentModel crea un cliente API con la API key y URL correctas según el proveedor del modelo actual
-func createClientForCurrentModel() *api.Client {
-	provider := config.DetectProviderFromModel(config.AppConfig.Model)
-	apiKey := config.GetAPIKeyForProvider(provider)
-
-	// Seleccionar la URL base correcta según el proveedor
-	var baseURL string
-	switch provider {
-	case "anthropic":
-		baseURL = "https://api.anthropic.com/v1/messages"
-	case "openai":
-		baseURL = "https://api.openai.com/v1/chat/completions"
-	case "groq":
-		baseURL = "https://api.groq.com/openai/v1/chat/completions"
-	case "openrouter":
-		baseURL = "https://openrouter.ai/api/v1/chat/completions"
-	case "ollama":
-		baseURL = "http://localhost:11434/api/chat"
-	default:
-		baseURL = config.AppConfig.BaseURL
-	}
-
-	return api.NewClient(apiKey, baseURL)
 }
 
 // updateSuggestions actualiza las sugerencias basadas en el input actual
@@ -908,7 +829,7 @@ func (m *model) updateViewportContent() {
 	}
 
 	// Si hay contenido en streaming, agregarlo al final
-	if m.isStreaming && m.currentResponse != "" {
+	if (m.isStreaming || m.executingTool != "") && m.currentResponse != "" {
 		modelName := config.AppConfig.Model
 		if len(modelName) > 15 {
 			modelName = modelName[:12] + "..."
