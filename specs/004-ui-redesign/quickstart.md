@@ -65,13 +65,13 @@ Los contratos detallados (firmas, tabs, invariantes, tests obligatorios) están 
 
 ## Checklist SC-001..007
 
-- [ ] SC-001: los 5 destinos top (Chat, Git, Configuración, Uso, Cuenta) se localizan ≤2 clics la primera vez; sin slot "Sesiones" que confunda.
-- [ ] SC-002: ajusta modelo → cambia tema → vuelve, en ≤3 acciones (rail/Ctrl+, → section → volver).
-- [ ] SC-003: recorrido completo (rail, panes, paleta Ctrl+K, keymap) 100% por teclado, focus visible en ambos temas.
-- [ ] SC-004: el panel Uso responde "¿cuánto gasté hoy?" ≤2s (KPI visible a primer golpe de vista).
-- [ ] SC-005: pares de texto ≥4.5:1 y no-texto ≥3:1 en ambos temas (palette smoke CI).
-- [ ] SC-006: ≥6 superficies con estado vacío + CTA; ninguna se vacía en blanco en refresh.
-- [ ] SC-007: decisión de aprobación ≤2s (p90), transcript siempre visible (sin regresión con 003).
+- [x] SC-001: los 5 destinos top (Chat, Git, Configuración, Uso, Cuenta) se localizan ≤2 clics la primera vez; sin slot "Sesiones" que confunda.
+- [x] SC-002: ajusta modelo → cambia tema → vuelve, en ≤3 acciones (rail/Ctrl+, → section → volver).
+- [x] SC-003: recorrido completo (rail, panes, paleta Ctrl+K, keymap) 100% por teclado, focus visible en ambos temas.
+- [x] SC-004: el panel Uso responde "¿cuánto gasté hoy?" ≤2s (KPI visible a primer golpe de vista).
+- [x] SC-005: pares de texto ≥4.5:1 y no-texto ≥3:1 en ambos temas (palette smoke CI).
+- [x] SC-006: ≥6 superficies con estado vacío + CTA; ninguna se vacía en blanco en refresh.
+- [x] SC-007: decisión de aprobación ≤2s (p90), transcript siempre visible (sin regresión con 003).
 
 ## Out of scope (futuro)
 
