@@ -136,3 +136,108 @@ hoy). No añadir sincronización cross-proceso en procesos separados para v1.
   plugins, settings, usage, help, theme, account) + paleta Ctrl+K + atajos
   Alt+1..8 + estados vacíos/de carga → reflejado en FR-017/FR-018, SC-010/SC-012.
 - Wails v3 en beta → riesgo asumido con pin exacto (D1).
+
+---
+
+# Enmienda US5 — Restyle & UX (2026-08-14)
+
+Investigación de @UI Designer y @UX Researcher sobre las GUI de **OpenAI Codex
+desktop** y **Qwen Code (Desktop/Web Shell)** para estilizar la GUI Wails de
+LetsGO con la misma filosofía de diseño y gates. Alcance: **solo frontend**
+(Svelte + `app.css` + `lib/store.svelte.ts`); sin cambios en bindings/servicios/
+eventos/motor.
+
+## D8: Sistema de diseño (tokens, tipografía, layout y componentes)
+
+**Decision**: Adoptar la filosofía convergente Codex/Qwen — **dark-first, chrome
+mínimo, acento único restringido (indigo-violeta), el chat como canvas (bubble
+usuario / bloque asistente sin card por mensaje), bloques de código como objetos
+elevados con header+copy+highlight, tool/plan actividad inline en el turno**. Todos
+los valores viven en `app.css` como semantic tokens (`var(--bg-surface)`,
+`var(--text-secondary)`, `html[data-theme="dark"|"light"]`); hex literal prohibido
+en componentes.
+
+**Coordenadas de datos (propuestas; verificación final como gate G2 en CI)**:
+
+- **Dark (base `#0e1116`)** · surfaces `#14181e`→`#222833` · borde hairline `#2e3540`
+  (input `#3d4654`) · texto `#e8ebf0`/`#9aa3b0`/`#6f7885` (15.8/7.4/3.8:1) ·
+  acento indigo `#8b94f8` (6.9:1) con `--accent-on #101218` · semánticos
+  ok `#4ade80`, warn `#fbbf24`, err `#f87171` (siempre con icono+texto, no color solo).
+- **Light (base `#f6f7f9`)** · surface `#ffffff`/`#eef0f3` · borde `#dfe3e8`/`#c4cbd4`
+  · texto `#1c2026`/`#5c6570`/`#8b939e` (16.4/5.9/3.2:1) · acento `#4f46e5` (6.3:1)
+  · semánticos ok `#15803d`, warn `#b45309`, err `#dc2626`.
+- **Sombras**: `--shadow-sm/md/lg` (overlays llevan sombra dura; la página surface no)
+  y `--overlay` scrim.
+- **Tipografía**: stack UI Inter/system-ui (peso 400 base, 500/600 para énfasis) +
+  mono JetBrains Mono (sustituye a Cascadia Mono); escala 11/13/14/15/16/18/20/24
+  (base chat 14px/22); prosa line-height 1.6; `tabular-nums` en números;
+  etiquetas caps 11px tracking 0.08em.
+- **Spacing/radius/breakpoints**: escala 4px (4/8/12/16/20/24/32/40/48); radius
+  sm/md/lg/xl 6/8/10/12 + pill; chat col ≤760px; rail 48px (icon-only) colapsable a
+  56px con tooltip `Label Alt+n`; ≥1600px modo dos paneles (chat + sesiones).
+- **Componentes**: rail con SVG stroke icons (sin emoji) + marcador activo único
+  (accent icon + barra 3px + `--accent-soft`); status line inferior 28px (proveedor·
+  modelo·branch·uso·dot busy) — elimina las pills flotantes; composer como command
+  shell docked (model chip · plan toggle · @file · Send⇄Stop · hint row `Ctrl+K
+  commands · / plan · @ files · Alt+1-8 surfaces`); message bubble (usuario) /
+  bloque full-width (asistente) con header-per-message (mark+Assistant+timestamp+
+  estado/modelo) y cursor stream; CodeBlock.svelte (header+language+Copy+highlight,
+  cursor `▍`); tool cards inline colapsables + group-compaction (Qwen
+  `compactInline`); sesiones agrupadas por fecha + status dot; paleta 640px
+  grouped + highlight + footer hints; onboarding split-screen (brand 45% + form 55%);
+  skeletons (sin spinners salvo <150ms).
+
+**Rationale**: los dos referentes convergieron (chrome quieto, densidad aireada,
+acento sobrio, chat como canvas, keyboard-first) y ambos exponen su tema como
+**tokens semánticos** (`codex-theme-v1`; Qwen key set) → el sistema de tokens CSS
+es el mecanismo correcto y deja swap futuro del acento sin tocar componentes.
+Un solo acento indigo-violeta hereda la familia Qwen sin perder el neutralismo de
+Codex. Preserva las coords AA ya presentes en app.css (mismo rango de contraste).
+
+**Alternatives considered**: acento estrictamente azul Codex (`#5c99d6`) — descartado
+por herencia Qwen del producto (se puede swap solo en tokens); doble acento
+(brand + status) — descartado (restricción de un solo acento); card-por-mensaje
+(mantener actual) — descartado por P8 (densidad tranquila exige quitar el
+card-every-message); emoji como iconografía — descartado por G5 (inconsistente,
+"toy-grade", rompe densidad).
+
+## D9: Backlog de UX priorizado y gates (backlog: prioridades)
+
+**Decision**: Backlog de 23 mejoras priorizadas **P0/P1/P2** del @UX Researcher
+(files y notas en el reporte; resumen abajo). Principios benchmark: P1 chat-first,
+P2 composer siempre-en y editable durante stream (Send↔Stop un slot), P3 tool
+inline agrupada por turno, P4 disclosure progresiva, P5 errores calm/actionable
+(Retry reproduce el turno), P6 continuidad de sesión (resume 1 acción), P7
+keyboard-first, P8 densidad tranquila, P9 onboarding de un solo objetivo.
+
+- **P0 (U5-A)**: I-1 composer pinned; I-2 Retry re-envía el último mensaje de
+  usuario; I-3 paleta navegable ↑/↓+Enter+focus restore; I-4 abrir sesión navega a
+  chat (`window.location.hash=""`); I-5 Esc cierra Settings/Usage/Help + refocus
+  composer (backdrop-click también); I-6 dedupe tool rows (1 row/call en
+  `store.svelte.ts`, update por `callId`); I-7 affordance "Streaming — Enter stops".
+- **P1 (U5-B)**: I-8 densidad por turnos (sin cards por mensaje; código = el card,
+  con Copy); I-9 tool activity inline/agrupada colapsable; I-10 iconos SVG + mover
+  theme/account a chrome (rail/status line) y consolidar `rail.svelte` duplicado;
+  I-11 Help alignado con TABS; I-12 sesiones empty CTA + "Refrescando…" + fecha/
+  recuento; I-13 settings no-modal drawer Esc-able (mismos calls `SaveConfig`).
+- **P1 (U5-C)**: I-14 empty+loading con CTA en 7+ superficies; I-15 foco/a11y
+  (aria-live/busy, focus trap paleta, reduced-motion); I-16 header status strip
+  (provider·model·hoy — datos de useAccount/useConfig).
+- **P2 (U5-D)**: I-17 render streaming memoizado; I-18 syntax highlight + toggle
+  raw (Alt+M); I-19 tabla per-provider + wording budget; I-20 deep-links flyout;
+  I-21 onboarding autofocus + model "Advanced"; I-22 rename/delete sesión; I-23
+  tips en empty chat.
+
+**Rationale**: los 7 P0 son violaciones directas de los principios benchmark
+(F-008 composer siempre-en, FR-013 retry actionable, SC-003 keyboard 100%,
+continuidad de sesión, tool no duplicado) y todos son solo-frontend. La
+estabilidad de tests (UX-12..UX-14: vitest existentes sin cambios, e2e onboarding
+intacto, cero diff de bindings/backend) permite iterar el restyle en fases con
+gate de regresión en cada una.
+
+**Alternatives considered**: regrabar el contrato de eventos o services para
+"mejorar" UX — descartado (viola II, fuera de alcance); adoptar un framework de
+UI (Tailwind/shadcn) — descartado (V: un solo set de tokens CSS ya estandariza,
+sin nueva toolchain); rediseñar la navegación (sidebar grande al estilo Codex)
+— descartado para v1 (el rail ya cumple el gui-contract y P4 referee disclosure;
+solo se re-viste).

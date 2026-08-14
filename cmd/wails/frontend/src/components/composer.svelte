@@ -51,6 +51,9 @@
   ></textarea>
 
   <div class="actions">
+    {#if useChat.isStreaming()}
+      <span class="stream-hint" role="status">Streaming — Enter stops</span>
+    {/if}
     <button
       class="primary"
       onclick={handleSubmit}
@@ -86,6 +89,14 @@
   .actions {
     display: flex;
     gap: 8px;
+    align-items: flex-end;
+  }
+
+  .stream-hint {
+    align-self: center;
+    color: var(--text-dim);
+    font-size: 12px;
+    white-space: nowrap;
   }
 
   .actions button {

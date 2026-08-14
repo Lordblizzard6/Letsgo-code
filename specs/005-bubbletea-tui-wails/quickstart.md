@@ -114,3 +114,47 @@ letsgo gui
   retirada de Fyne.
 - Contraste AA de la paleta en ambos temas (smoke CI heredado del 004).
 - Transcripts ≥500 mensajes con scroll sin degradación (SC-009).
+
+## J5 — Restyle & UX tipo Codex/Qwen (US5)
+
+**Objetivo**: validar que el restyle (enmienda 2026-08-14) alcanza la filosofía de
+diseño de Codex/Qwen sin regresión funcional; dirigido por los gates de
+[gui-contract.md](contracts/gui-contract.md) §8 (G1–G10, UX-01..UX-14).
+
+**Prerrequisitos**: implementación de las fases U5-A..D (plan.md US5) + tests
+Vitest de cada fase (Test-Last) + `npm run playwright`.
+
+```bash
+cd cmd/wails/frontend
+npm run check          # svelte-check: 0 errores, sin emoji, tokens en app.css
+npm test -- --run      # vitest existentes + nuevos (chat/composer/onboarding/errors + U5)
+npm run playwright     # e2e onboarding intacto + nuevos (paleta, overlays, composer)
+rg "#[0-9a-fA-F]{3,8}" src/ --glob '*.svelte' --glob '*.ts'   # gate G1: solo app.css
+```
+
+**Esperado (gates)**:
+
+1. **G1/G4/G5 (estática)**: cero hex en componentes (solo tokens), spacing en
+   escala 4px, cero emoji en chrome, chat ≤760px.
+2. **G2/G8 (visual)**: Playwright captura dark+light de (a) chat con bubble +
+   bloque asistente + code-block con Copy, (b) paleta, (c) onboarding split,
+   (d) empty/loading, (e) overlays no-oscurecen el chat → contraste AA y foco
+   visibles en ambos temas; todo `<pre>` es `CodeBlock`.
+3. **G3/G6/G7 (integridad)**: flujo 100% por teclado (Ctrl+K ⇄ paleta ↑/↓/Enter ⇄
+   Esc, Alt+1..9, Enter send/stop, Tab en settings), sin rail duplicado, y las 10
+   superficies con empty+loading+error.
+4. **UX-01..UX-11 (comportamiento)**: Retry re-envía el último turno; composer
+   nunca se pierde y sigue editable en stream (Send⇄Stop); abrir una sesión entra
+   al chat; 1 row por tool ya agrupada; Esc/backdrop cierran Settings/Usage/Help;
+   foco restaurado; `aria-busy` en stream; empty+loading en 7/7 superficies.
+5. **UX-12..UX-14 (regresión)**: los vitest pre-existentes pasan sin cambios; el
+   e2e `onboarding.spec.ts` no se toca; `git diff --stat` (fuera de `specs/`) solo
+   toca `cmd/wails/frontend/**` (cero diff de bindings/backend).
+
+**Esperado final**: smoke `letsgo.exe gui` con el dist nuevo; screenshot de
+referencia vs. checklist G10 sin fallos de token (los gustos no son fallo de gate).
+
+**Jornada de demo**: abrir la GUI con key → flujo key→modelo→chat (≤4 acciones,
+SC-007) → conversar con una herramienta (tool card inline) → Ctrl+K navegar entre
+superficies → Esc cierra overlays → sesión de la TUI retomada en 1 clic → guardar
+modelo en Configuración verifica en TUI.

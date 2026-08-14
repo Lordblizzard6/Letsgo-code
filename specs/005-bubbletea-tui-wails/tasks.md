@@ -203,7 +203,86 @@
 
 ---
 
-## Phase 8: Polish & Cross-Cutting
+## Phase 8: User Story 5 — Restyle & UX tipo Codex/Qwen (Prioridad P4)
+
+**Goal**: estilizar y mejorar la UI de la GUI Wails con la filosofía de diseño convergente Codex/Qwen (plan.md §US5 + research.md D8/D9 + gui-contract §8): chrome mínimo, dark-first, chat como canvas, keyboard-first, tokens semánticos solo en `app.css`. **Restyle SOLO frontend presentacional** — cero diff de bindings/services/backend (gate UX-14); atajos Alt+1..9 y rutas hash intactos; strings de test intactos (UX-12/UX-13).
+
+**Independent Test**: `letsgo.exe gui` y recorrido J5 de quickstart.md — composer siempre visible, Retry reproduce el último turno, paleta navegable con teclado, Esc cierra overlays/system, tool activity 1 fila por llamada, affordance de stream, contrastes AA en ambos temas (J5, G2, UX-01..UX-09).
+
+### Implementación — Fase U5-A (P0, Test-Last) ⚠️
+
+- [x] T090 [US5] U5-A/I-1 Composer always-on: re-diseñar el layout de `cmd/wails/frontend/src/components/chat.svelte` (y `app.css`) — el área de mensajes/stream hace scroll dentro del pane y el composer queda fijado/físicamente siempre visible al fondo, aunque el scroll esté arriba (UX-02, plan §US5 punto 5).
+- [x] T091 [US5] U5-A/I-2 Retry reproduce último turno: en `cmd/wails/frontend/src/components/chat.svelte` `handleRetry` debe reenviar **Start + Send del último turno de usuario** (helper `useChat.lastUserText()` en `lib/store.svelte.ts`) en lugar de solo `Start()` (UX-01).
+- [x] T092 [US5] U5-A/I-3 Paleta ↑/↓+Enter: en `cmd/wails/frontend/src/components/palette.svelte` — ArrowUp/ArrowDown mueven la selección (active index/aria-activedescendant), Enter selecciona el item resaltado (no solo `filtered[0]`), Esc cierra; carrusel al llegar al final (UX-06).
+- [x] T093 [US5] U5-A/I-4 Abrir sesión entra al chat: en `cmd/wails/frontend/src/components/sessions-panel.svelte` `handleOpen` navega a `#` (chat) tras cargar mensajes, cumpliendo UX-03 (resume = 1 acción).
+- [x] T094 [US5] U5-A/I-5 Esc cierra Settings/Usage/Help: en `cmd/wails/frontend/src/App.svelte` extender el manejador de Esc — si `currentTab` ∈ SYSTEM (settings/usage/help) → navega a chat; sin afectar paleta/flyout (UX-05).
+- [x] T095 [US5] U5-A/I-6 Tool dedupe 1 row/call: en `cmd/wails/frontend/src/lib/store.svelte.ts` — `tool:start` crea la fila por `callId` y `tool:end` la **actualiza in-place** (upsert, 1 row por llamada); nuevo `useTools.upsertActivity` (UX-04).
+- [x] T096 [US5] U5-A/I-7 Affordance "Streaming — Enter stops": en `cmd/wails/frontend/src/components/composer.svelte` — durante `isStreaming` mostrar hint "Streaming — Enter stops" (visible, aria-live) junto al botón Stop; Enter durante stream ya cancela (mantiene test T071).
+
+### Tests para Fase U5-A (Test-Last, constitución I — Vitest) ⚠️
+
+- [x] T097 [P] [US5] TestVitestPaletteKeyboard en `cmd/wails/frontend/src/tests/palette.test.ts`: ↓/↑ mueven la selección, Enter elige el resaltado, Esc cierra (UX-06, gui-contract §5).
+- [x] T098 [P] [US5] TestVitestRetryLastTurn en `cmd/wails/frontend/src/tests/chat.test.ts`: tras `stream:error` con historial, Retry emite `Start`+`Send(lastUserText)` — se verifica vía `Call.ByID` mockeado con el texto del último turno (UX-01, FR-013).
+- [x] T099 [P] [US5] TestVitestToolDedupe en `cmd/wails/frontend/src/tests/tool-activity.test.ts`: `tool:start`+`tool:end` con el mismo `callId` → **1 sola fila** actualizada, no 2 (UX-04, I-6).
+- [x] T100 [P] [US5] TestVitestOpenSessionNavigates en `cmd/wails/frontend/src/tests/sessions.test.ts`: abrir una sesión carga mensajes y navega a chat (hash "") (UX-03, FR-009); Esc en settings/usage/help vuelve a chat (UX-05).
+- [x] T101 [P] [US5] TestVitestComposerAffordance en `cmd/wails/frontend/src/tests/composer.test.ts`: durante el stream aparece "Streaming — Enter stops" y el input sigue activo (I-7, FR-008).
+
+**Checkpoint fase U5-A**: P0 de P4 listo y verificado — composer always-on, retry/1 acción, keyboard-first (paleta ↑/↓+Enter, Esc cierra system), tool dedupe y affordance de stream; vitest 16/16 verde, `svelte-check` 0 errores, `npm run build` ok, Playwright e2e onboarding intacto y `go build ./...` verde. Gate G1 confirmado (los únicos `#hex`-like en `.svelte`/`.ts` son la sintaxis `#each`/`#if` de Svelte, no literales de color — todos los colores viven en `app.css`).
+
+### Implementación — Fase U5-B (P1, Test-Last) ⚠️
+
+- [ ] T102 [US5] U5-B/I-8 Densidad por turnos: `cmd/wails/frontend/src/components/message.svelte` — eliminar card-por-mensaje: bubble usuario / bloque asistente full-width, jerarquía por tamaño/peso, paddings 16px, sin border anidado (UX-10, G4).
+- [ ] T103 [US5] U5-B/I-9 Tool activity inline/agrupada: `cmd/wails/frontend/src/components/tool-activity.svelte` — el bloque de herramientas se integra en el turno correspondiente (colapsable, agrupado por call), nunca como log separado que empuje al composer (UX-04, plan punto 5).
+- [ ] T104 [US5] U5-B/I-10 Iconos SVG + consolidar rail: `cmd/wails/frontend/src/App.svelte` y `rail.svelte` — iconos stroke SVG en todo el chrome (cero emoji, G5) y rail definido ÚNICAMENTE en `rail.svelte` (G6; hoy App.svelte duplica el rail inline).
+- [ ] T105 [US5] U5-B/I-11 Copy Help alineado: `cmd/wails/frontend/src/components/help-overlay.svelte` — atajos/estados veraces con la implementación real (Alt+1..9, Ctrl+K, Esc) (UX-11, G6).
+- [ ] T106 [US5] U5-B/I-12 Sesiones serie: `cmd/wails/frontend/src/components/sessions-panel.svelte` — estado vacío con CTA "Nueva conversación" accionable y "Refrescando…" conservando el listado previo; denso (UX-09, gui-contract §3).
+- [ ] T107 [US5] U5-B/I-13 Settings no-modal Esc-able: `cmd/wails/frontend/src/components/settings-overlay.svelte` — panel drawer lateral, backdrop y Esc lo cierran volviendo al chat (UX-05, plan punto 6).
+
+### Tests para Fase U5-B (Test-Last) ⚠️
+
+- [ ] T108 [P] [US5] TestVitestMessageDensity en `cmd/wails/frontend/src/tests/chat.test.ts`: un mensaje renderiza MAx un contenedor de turno (sin card anidada) (UX-10, I-8).
+- [ ] T109 [P] [US5] TestVitestToolInline en `cmd/wails/frontend/src/tests/tool-activity.test.ts`: la actividad de herramientas del turno aparece inline/agrupada, presente tras el mensaje sin empujar el composer (UX-04, I-9).
+- [ ] T110 [P] [US5] TestVitestRailSvgSystem en `cmd/wails/frontend/src/tests/rail.test.ts`: el rail usa `rail.svelte` único, sin emoji en chrome y con iconos SVG (G5, G6, I-10); Help muestra los atajos reales (UX-11, I-11).
+
+**Checkpoint fase U5-B**: chrome mínimo + densidad por turnos + tool inline + rail consolidado en SVG + settings drawer — vitest verde.
+
+### Implementación — Fase U5-C (P1, Test-Last) ⚠️
+
+- [ ] T111 [US5] U5-C/I-14 Estados empty/loading con CTA en 7+ superficies: paneles (git, tasks, mcp, plugins, usage, help, chat) — empty accionable + loading skeleton conservando contenido previo (UX-09, G7).
+- [ ] T112 [US5] U5-C/I-15 Foco/a11y: `palette.svelte` (focus trap + restore al composer), `:focus-visible` ring en todo interactivo, `aria-live`/`aria-busy` en stream/loading, `prefers-reduced-motion` honrado en transiciones (G3, G9, UX-06/07).
+- [ ] T113 [US5] U5-C/I-16 Header status strip: `cmd/wails/frontend/src/App.svelte` — barra fina con provider·model·hoy (estado online/ocupado) alineada al sistema de tokens (UX-08, plan punto 4).
+
+### Tests para Fase U5-C (Test-Last) ⚠️
+
+- [ ] T114 [P] [US5] TestVitestEmptyLoading en `cmd/wails/frontend/src/tests/empty-states.test.ts`: 7+ superficies muestran empty accionable y loading (skeleton) conservando previo (UX-09, G7).
+- [ ] T115 [P] [US5] TestVitestA11y en `cmd/wails/frontend/src/tests/palette.test.ts` + `chat.test.ts`: focus trap en paleta con restore de foco al composer; regiones `aria-live` en stream; `prefers-reduced-motion` (G3, G9, UX-06/07).
+
+**Checkpoint fase U5-C**: estados completos (empty+loading+error en 7+ superficies), a11y de foco y aria, y header status strip — vitest verde.
+
+### Implementación — Fase U5-D (P2, Test-Last) ⚠️
+
+- [ ] T116 [US5] U5-D/I-17 Render streaming memoizado: `cmd/wails/frontend/src/lib/markdown.ts` + `message.svelte` — memoizar la renderización por chunk (evitar re-render de todo el historial en cada delta) (bug/rendimiento, G7).
+- [ ] T117 [US5] U5-D/I-18 Syntax highlight + copy + toggole raw Alt+M: componente `cmd/wails/frontend/src/components/code-block.svelte` — header con lang + botón copiar + toggle md/raw; todo `<pre>` vía este componente (G8).
+- [ ] T118 [US5] U5-D/I-19 Uso per-provider: `cmd/wails/frontend/src/components/usage-overlay.svelte` — desglose por proveedor del `Today` (coste/requests/tokens) (I-19, FR-017).
+- [ ] T119 [US5] U5-D/I-20 Deep-links flyout: `account-flyout.svelte` — acciones que navegan a settings/usage/chat (`#...`) y cierran el flyout (UX-05).
+- [ ] T120 [US5] U5-D/I-21 Onboarding autofocus + "Advanced": `ProviderSetup.svelte` — autofocus en el campo API key y panel "Advanced" colapsable para provider/modelo (I-21, FR-011).
+- [ ] T121 [US5] U5-D/I-22 Rename/delete sesión: `sessions-panel.svelte` + `SessionsService` (solo si el contrato lo permite; si no, marcar N/A y notificar en plan) (I-22, FR-009).
+- [ ] T122 [US5] U5-D/I-23 Tips empty: chat/sesiones — texto de ayuda contextual en estados vacíos (I-23, UX-11).
+
+### Tests para Fase U5-D (Test-Last) ⚠️
+
+- [ ] T123 [P] [US5] TestVitestCodeBlock en `cmd/wails/frontend/src/tests/code-block.test.ts`: `<pre>` con lang, copia al portapapeles, toggle raw/md vía Alt+M (G8, I-18).
+- [ ] T124 [P] [US5] TestVitestUsagePerProvider en `cmd/wails/frontend/src/tests/usage.test.ts`: `Today` muestra coste/requests/tokens por proveedor (I-19, FR-017).
+- [ ] T125 [P] [US5] TestVitestSessionsRenameDelete en `cmd/wails/frontend/src/tests/sessions.test.ts`: renombrar/borrar sesión actualiza la lista (I-22, FR-009) — solo si el contrato lo permite.
+- [ ] T126 [P] [US5] TestVitestOnboardingAutofocus en `cmd/wails/frontend/src/tests/onboarding.test.ts`: el campo API key recibe foco al abrir onboarding y "Advanced" es colapsable (I-21, FR-011).
+
+**Checkpoint fase U5-D**: code blocks (highlight+copy+raw), uso per-provider, deep-links, onboarding pulido, rename/delete (si soporta) y tips — vitest verde.
+
+**Checkpoint US5 completo**: restyle tipo Codex/Qwen cerrado — gates G1 (token purity), G4 (spacing escala 4px), G5 (cero emoji), G6 (inventario + rail único), G8 (todo `<pre>` vía code-block) verificables por grep; G2/G3/G9/G10 vía smoke Playwright y J5 (quickstart).
+
+---
+
+## Phase 9: Polish & Cross-Cutting
 
 **Proposito**: documentación, limpieza tras la retirada de Fyne y regresión completa (Gate B).
 
@@ -224,7 +303,8 @@
 - **Foundational (Phase 2)**: depende de Setup — BLOQUEA todos los user stories.
 - **Retirada de Fyne (Phase 3)**: depende de Setup+Foundational y del esqueleto de services/main (T040-T050) para poder dejar `cmd/gui.go` apuntando a `cmd/wails/gui.Run()`; es la **PRIMERA tarea de implementación** (directiva usuario) y NO depende del checkpoint de paridad.
 - **User Stories (Phase 4-7)**: dependen de Foundational (contrato publicado, tipos de eventos, harness).
-- **Polish (Phase 8)**: depende de todos los user stories deseados (G-1 cerrado por las suites de US3+US4).
+- **US5 restyle (Phase 8)**: depende de US3+US4 (solo frontend; supone la GUI funcional y testeada); NO toca bindings/services/backend.
+- **Polish (Phase 9)**: depende de todos los user stories deseados (G-1 cerrado por las suites de US3+US4; US5 opcional/separado).
 
 ### User Story Dependencies
 
@@ -232,6 +312,7 @@
 - **US2 (P2)**: tras Foundational; consume el contrato de US1 (T018) pero es demostrable e implementable en paralelo a US1 (los comandos/eventos ya existen en el core).
 - **US3 (P3)**: tras Foundational y US1 (los services bound consumen el contrato C-001..C-006); **se apoya en Phase 3** (retirada de Fyne + `letsgo.exe gui`). Fyne ya está fuera antes de cerrar US3.
 - **US4 (P3)**: tras Foundational y el esqueleto de US3 (services, App shell, Settings); demostrable por separado.
+- **US5 (P4)**: tras US3+US4; restyle solo frontend (`cmd/wails/frontend/**`) — sin dependencia de Polish.
 
 ### Within Each User Story
 
@@ -249,6 +330,10 @@
 - [P] US2: T029, T030 (tras T028).
 - [P] US3: T040-T049 (10 services) + T052-T066 (15 componentes); luego tests T068-T077 en paralelo (tras la infra T005/Playwright).
 - [P] US4: T079, T081 (tras T078) ; luego tests T082-T085.
+- [P] US5 U5-A: T090-T096 (I-1..I-7 en paralelo por ficheros distintos: chat.svelte/App.svelte/sessions-panel.svelte/store.svelte.ts/palette.svelte/composer.svelte) ; luego tests T097-T101 en paralelo.
+- [P] US5 U5-B: T102-T107 ; luego tests T108-T110.
+- [P] US5 U5-C: T111-T113 ; luego tests T114-T115.
+- [P] US5 U5-D: T116-T122 ; luego tests T123-T126.
 - [P] Polish: T086, T087, T088.
 - Distintos user stories pueden trabajarse en paralelo por distintos miembros tras Foundational (respeta los ficheros: `internal/tui/*` solo US2; `cmd/wails/*` solo US3/US4; `internal/engine/*` solo US1; `cmd/gui.go`+`internal/gui` solo Phase 3).
 
@@ -321,7 +406,8 @@
 4. +US2 (T028-T039) → TUI formalizada sobre el contrato, tests de modelo + teatest (J2). Demo.
 5. +US3 (T040-T077) → GUI Wails con paridad (G-1 + G-2/G-3 ya en Phase 3) (J3). Demo.
 6. +US4 (T078-T085) → onboarding y configuración compartida (J4). Demo.
-7. Polish (T086-T089) → Gate B final: `go test ./...` verde sin fyne y J1-J4 completos.
+7. **US5 (T090-T126)** (opcional/P4) → restyle & UX tipo Codex/Qwen (J5). Demo.
+8. Polish (T086-T089) → Gate B final: `go test ./...` verde sin fyne y J1-J4 completos.
 
 ### Parallel Team Strategy
 

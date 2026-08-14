@@ -82,6 +82,14 @@ La constitución está **ratificada** (`.specify/memory/constitution.md` v1.0.0,
 retirada inmediata de Fyne refuerzan II (contract-only) y V (una sola GUI).
 GATE: PASA.*
 
+*Re-evaluación tras la enmienda US5 (2026-08-14): el restyle es **solo frontend
+presentacional** (Svelte + app.css + lib/store.svelte.ts para dedupe de tool rows).
+II se refuerza (los services bound no cambian; cero diff de bindings/backend, gate
+UX-14), IV se ratifica (se mantiene streaming-markdown + DOMPurify doble saneado;
+copy/highlight son DOM/CSS sin innerHTML; gate UX-07), V se cumple (un único set de
+tokens y primitivas; se consolida el rail duplicado, no se crean abstracciones)
+y I se mantiene (tests Vitest/Playwright al final de cada fase U5-A..D). GATE: PASA.*
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -132,6 +140,74 @@ con el pin de Wails ya presente (`v3.0.0-beta.7` en go.mod) y el esqueleto de
 services/bindings ya generado. El contrato (`contracts/`) es la frontera entre
 core e interfaces.
 
+## US5 — Restyle & UX: diseño tipo Codex/Qwen (post-US4, enmienda 2026-08-14)
+
+**Directiva del usuario (2026-08-14)**: "estilizar y mejorar la UI de Wails con
+enfasis en similitud con Codex GUI y Qwen-GUI, misma filosofia de diseño y gates".
+Investigacion a cargo de @UI Designer y @UX Researcher (hallazgos en
+[research.md](research.md) D8/D9). Alcance del restyle: **solo frontend**
+(Svelte + app.css); sin cambios en bindings, servicios bound, contrato de eventos,
+rutas hash, atajos Alt+1..9 ni lógica del motor (guarda UX-14 en D9).
+
+### Filosofía de diseño convergente (referencias)
+
+1. **Chrome mínimo**: marco neutro, bordes hairline, superficies por luminancia (no
+   por esquinas), sombras solo en overlays.
+2. **Denso pero aireado**: UI 13–14px, paddings generosos 16–24px, jerarquía por
+   tamaño/peso, no por color.
+3. **Acento restringido**: un solo acento (activo/links/focus/CTA primario);
+   semánticos sobrios.
+4. **Dark-first**: dark es la navegación principal; light es traducción AA verificada.
+5. **El chat es el canvas**: mensajes como superficies de lectura (bubble usuario /
+   bloque asistente full-width, sin card por mensaje); bloques de código como
+   objetos elevados con header + copiar + resaltado; actividad de herramientas
+   **inline en el turno** (colapsable, agrupada), nunca un log colgante que empuje
+   al composer.
+6. **Keyboardo como carga estructural**: paleta, foco visible, Esc cierra overlays,
+   restore de foco al composer.
+
+### Workstreams (fases, cada una con su gate y tests Vitest/Playwright al final — Test-Last)
+
+| Fase | Alcance (del backlog D9) | File(s) principal(es) |
+|------|--------------------------|------------------------|
+| U5-A (P0) | Composer always-on (I-1), Retry reproduce último turno (I-2), navegación ↑/↓+Enter en paleta (I-3), abrir sesión entra al chat (I-4), Esc cierra Settings/Usage/Help (I-5), tool dedupe 1 row/call (I-6), affordance "Streaming — Enter stops" (I-7) | `chat.svelte`, `composer.svelte`, `palette.svelte`, `App.svelte`, `sessions-panel.svelte`, `lib/store.svelte.ts` |
+| U5-B (P1) | Densidad por turnos (I-8), tool activity inline/agrupada (I-9), iconos SVG + silicio en rail/chrome (I-10), copy Help alineado (I-11), sesiones serie (I-12), settings no-modal Esc-able (I-13) | `message.svelte`, `tool-activity.svelte`, `App.svelte`, `rail.svelte`, `help-overlay.svelte`, `sessions-panel.svelte`, `settings-overlay.svelte` |
+| U5-C (P1) | Estados empty/loading con CTA en 7+ superficies (I-14), foco/a11y (I-15), header status strip (I-16) | paneles + `chat.svelte` + `app.css` |
+| U5-D (P2) | Optimización render streaming (I-17), syntax highlight + copy (I-18), uso per-provider (I-19), deep-links flyout (I-20), onboarding autofocus/advanced (I-21), rename/delete sesiones (I-22), tips empty (I-23) | `lib/markdown.ts`, `message.svelte`, `usage-overlay.svelte`, `account-flyout.svelte`, `ProviderSetup.svelte`, `sessions-panel.svelte` |
+
+**Tokens y sistema**: bloques de color/type/spacing/radius/shadow/estado definidos en
+D8 → viviran ENTEROS en `app.css` (semantic tokens, `html[data-theme]`); los
+componentes consumen `var(--token)`, nunca hex literal (gate G1/G2).
+
+### Gates de diseño y UX (extienden los del gui-contract §8)
+
+Gate de restyle (verificables en CI por grep/Playwright/vitest):
+
+- **G1 Token purity** — `rg "#[0-9a-fA-F]{3,8}" src/ --glob "*.svelte" --glob "*.ts"` = 0 fuera de `app.css`.
+- **G2 WCAG AA ambos temas** — contrastes automáticos (body/meta ≥4.5:1, no-text ≥3:1, texto sobre acento ≥4.5:1); smoke Playwright a 100/125/150%.
+- **G3 Foco visible** — `:focus-visible` ring en todo interactivo, ambos temas; flujo completo por teclado.
+- **G4 Disciplina de spacing** — lint px solo en escala 4px (4/8/12/16/20/24/32/40/48); chat ≤760px; targets ≥44px.
+- **G5 Iconografía** — cero emoji en chrome, SVG stroke único set.
+- **G6 Cobertura de inventario ≥95%** — toda superficie del gui-contract desde primitivas; sin rail duplicado.
+- **G7 Estados completos** — 10 superficies con empty+loading(skeleton)+error; chat con streaming/error/empty/idle.
+- **G8 Código** — todo `<pre>` vía componente code-block (header+lang+copy+highlight); sin `<pre>` desnudo.
+- **G9 Movimiento** — transiciones ≤150ms (salvo progreso stream); `prefers-reduced-motion` honrado.
+- **G10 Smoke visual** — screeenshots chat/palette/onboarding/empty/dark+light contra checklist.
+
+Gates de UX (D9 §4): UX-01 (Retry reproduce último turno), UX-02 (composer siempre visible), UX-03 (resume 1 acción), UX-04 (1 row/tool + agrupado), UX-05 (Esc/backdrop cierran overlays + chat visible), UX-06 keyboard 100% + foco, UX-07 aria-live/busy + reduced-motion, UX-08 contraste token-pairs, UX-09 empty/loading 7/7, UX-10 densidad (sin card-anidada), UX-11 copy/estado veraces, UX-12..UX-14 regresión estabilizadores (test existentes pasan sin cambios; e2e onboarding intacto; cero diff de bindings/backend).
+
+### Estructura documental (adiciones a este feature)
+
+```text
+specs/005-bubbletea-tui-wails/
+├── plan.md            # + US5 (este sección, enmienda)
+├── research.md        # + D8 (sistema de diseño token) y D9 (UX backlog/gates)
+├── quickstart.md      # + J5 (validación visual/UX del restyle)
+└── contracts/gui-contract.md  # + §8 Sistema de diseño y gates UX
+```
+
 ## Complexity Tracking
 
-No aplica — Constitution Check sin violaciones (no se requiere tabla).
+Sin violaciones de constitución (la enmienda US5 es solo presentacional/frontend).
+Complejidad justificada resumida en D8/D9 (un solo acento, una escala, un juego de
+tokens; sin abstracciones nuevas). Se mantiene la tabla vacía.

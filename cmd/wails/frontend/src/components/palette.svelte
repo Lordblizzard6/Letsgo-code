@@ -18,6 +18,7 @@
 
   let query = $state("");
   let inputEl = $state<HTMLInputElement | null>(null);
+  let activeIndex = $state(0);
 
   const filtered = $derived(
     query
@@ -26,6 +27,21 @@
         )
       : items,
   );
+
+  $effect(() => {
+    void query;
+    activeIndex = 0;
+  });
+
+  function move(delta: number) {
+    if (filtered.length === 0) return;
+    activeIndex = (activeIndex + delta + filtered.length) % filtered.length;
+  }
+
+  function selectActive() {
+    const item = filtered[activeIndex];
+    if (item) onSelect(item);
+  }
 
   $effect(() => {
     inputEl?.focus();
@@ -43,17 +59,40 @@
       bind:this={inputEl}
       bind:value={query}
       placeholder="Type a command or destination..."
+      role="combobox"
+      aria-expanded="true"
+      aria-controls="palette-list"
+      aria-activedescendant={filtered[activeIndex]
+        ? `palette-item-${filtered[activeIndex].id}`
+        : undefined}
       onkeydown={(e) => {
-        if (e.key === "Enter" && filtered[0]) onSelect(filtered[0]);
-        if (e.key === "Escape") onClose();
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          move(1);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          move(-1);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          selectActive();
+        } else if (e.key === "Escape") {
+          onClose();
+        }
       }}
     />
     {#if filtered.length === 0}
       <div class="palette-empty">No matches</div>
     {:else}
-      <ul class="palette-list">
-        {#each filtered as item (item.id)}
-          <li onmousedown={() => onSelect(item)}>
+      <ul id="palette-list" class="palette-list" role="listbox">
+        {#each filtered as item, i (item.id)}
+          <li
+            id={`palette-item-${item.id}`}
+            role="option"
+            aria-selected={i === activeIndex}
+            class:active={i === activeIndex}
+            onmousedown={() => onSelect(item)}
+            onmouseenter={() => (activeIndex = i)}
+          >
             <span class="palette-icon">{item.icon ?? "›"}</span>
             <span class="palette-label">{item.label}</span>
             {#if item.hint}
@@ -119,6 +158,11 @@
   .palette-list li:hover,
   .palette-list li:focus-within {
     background: var(--bg-input);
+  }
+
+  .palette-list li.active {
+    background: var(--bg-input);
+    color: var(--text);
   }
 
   .palette-icon {

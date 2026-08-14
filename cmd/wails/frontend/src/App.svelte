@@ -112,6 +112,8 @@
           refocusComposer();
         } else if (accountOpen) {
           accountOpen = false;
+        } else if (SYSTEM.includes(currentTab)) {
+          navigate("chat");
         }
       }
     };

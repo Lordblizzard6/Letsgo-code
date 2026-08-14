@@ -5,10 +5,13 @@
   import Composer from "./composer.svelte";
   import ToolActivity from "./tool-activity.svelte";
 async function handleRetry() {
+    const last = useChat.lastUserText();
+    if (!last) return;
     useChat.setError(null);
     useChat.setStreaming(true);
     try {
       await ChatService.Start();
+      await ChatService.Send(last);
     } catch (err) {
       useChat.setStreaming(false);
       useChat.setError(err instanceof Error ? err.message : String(err));
@@ -17,42 +20,56 @@ async function handleRetry() {
 </script>
 
 <main class="pane chat-col">
-  {#if useChat.error()}
-    <div class="error-banner">
-      <strong>Error:</strong> {useChat.error()}
-      <p>Check your API key, connection and model, then retry.</p>
-      <button onclick={handleRetry}>Retry</button>
-    </div>
-  {/if}
+  <div class="chat-scroll">
+    {#if useChat.error()}
+      <div class="error-banner">
+        <strong>Error:</strong> {useChat.error()}
+        <p>Check your API key, connection and model, then retry.</p>
+        <button onclick={handleRetry}>Retry</button>
+      </div>
+    {/if}
 
-  {#if useChat.messages().length === 0}
-    <div class="empty-state">
-      <p>No messages yet. Send a message to start a chat.</p>
-    </div>
-  {:else}
-    {#each useChat.messages() as message (message.id)}
-      <Message {message} />
-    {/each}
+    {#if useChat.messages().length === 0}
+      <div class="empty-state">
+        <p>No messages yet. Send a message to start a chat.</p>
+      </div>
+    {:else}
+      {#each useChat.messages() as message (message.id)}
+        <Message {message} />
+      {/each}
 
-    <div class="stream-indicator">
-      {#if useChat.isStreaming()}
-        <div class="spinner"></div>
-        <span>Streaming...</span>
-      {/if}
-      {#if useChat.idle()}
-        <span>Ready</span>
-      {/if}
-    </div>
-  {/if}
+      <div class="stream-indicator">
+        {#if useChat.isStreaming()}
+          <div class="spinner"></div>
+          <span>Streaming...</span>
+        {/if}
+        {#if useChat.idle()}
+          <span>Ready</span>
+        {/if}
+      </div>
+    {/if}
 
-  <ToolActivity />
+    <ToolActivity />
+  </div>
+
   <Composer />
 </main>
 
 <style>
   .pane.chat-col {
-    max-width: 720px;
+    max-width: 760px;
     margin: 0 auto;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .chat-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
   }
 
   .error-banner {

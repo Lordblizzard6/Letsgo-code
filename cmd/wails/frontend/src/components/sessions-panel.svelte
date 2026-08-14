@@ -26,6 +26,7 @@
         content: typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? ""),
       })),
     );
+    window.location.hash = "";
   }
 
   $effect(() => {

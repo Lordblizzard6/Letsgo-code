@@ -127,6 +127,12 @@ export const useChat = {
     chat.streamingText = "";
     chat.error = err ?? null;
   },
+  lastUserText: (): string => {
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      if (chat.messages[i].role === "user") return chat.messages[i].content;
+    }
+    return "";
+  },
   reset: () => {
     chat.messages = [];
     chat.isStreaming = false;
@@ -240,6 +246,15 @@ export const useTools = {
   pushActivity: (a: ToolActivity) => {
     tools.activity = [a, ...tools.activity].slice(0, 20);
   },
+  upsertActivity: (a: ToolActivity) => {
+    const idx = tools.activity.findIndex((t) => t.callId === a.callId);
+    if (idx >= 0) {
+      tools.activity[idx] = a;
+      tools.activity = [...tools.activity];
+    } else {
+      tools.activity = [a, ...tools.activity].slice(0, 20);
+    }
+  },
   clearActivity: () => {
     tools.activity = [];
   },
@@ -285,14 +300,14 @@ function wireEngineEvents() {
     useChat.setIdle(true);
   });
   Events.On("tool:start", (ev: any) => {
-    useTools.pushActivity({
+    useTools.upsertActivity({
       callId: ev.data?.call_id ?? "",
-      name: "",
+      name: ev.data?.name ?? "",
       success: true,
     });
   });
   Events.On("tool:end", (ev: any) => {
-    useTools.pushActivity({
+    useTools.upsertActivity({
       callId: ev.data?.call_id ?? "",
       name: ev.data?.name ?? "",
       success: !ev.data?.is_error && !ev.data?.rejected && !ev.data?.timed_out,
