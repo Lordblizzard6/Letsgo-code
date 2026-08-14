@@ -27,10 +27,18 @@
     }
   }
 
+  function handleSubmit() {
+    if (useChat.isStreaming()) {
+      handleCancel();
+    } else {
+      handleSend();
+    }
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      handleSubmit();
     }
   }
 </script>
@@ -40,16 +48,16 @@
     bind:value={message}
     onkeydown={handleKeyDown}
     placeholder="Type your message..."
-    disabled={useChat.isStreaming()}
   ></textarea>
 
   <div class="actions">
-    <button class="primary" onclick={handleSend} disabled={!message.trim() || useChat.isStreaming()}>
-      Send
+    <button
+      class="primary"
+      onclick={handleSubmit}
+      disabled={!useChat.isStreaming() && !message.trim()}
+    >
+      {useChat.isStreaming() ? "Stop" : "Send"}
     </button>
-    {#if useChat.isStreaming()}
-      <button onclick={handleCancel}>Cancel</button>
-    {/if}
   </div>
 </div>
 

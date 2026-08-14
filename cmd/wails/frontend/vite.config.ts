@@ -12,8 +12,21 @@ export default defineConfig({
     strictPort: true,
   },
   plugins: [svelte(), wails("./bindings")],
+  resolve: {
+    conditions: ["browser"],
+  },
+  ssr: {
+    resolve: {
+      conditions: ["browser", "module", "import"],
+    },
+  },
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.ts"],
+    server: {
+      deps: {
+        inline: [/svelte/, /@testing-library/],
+      },
+    },
   },
 });
