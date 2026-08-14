@@ -62,10 +62,8 @@ func GetCostTracker() *CostTracker {
 	return costInstance
 }
 
+// load reads persisted entries. Caller must hold mu.
 func (t *CostTracker) load() error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	if _, err := os.Stat(t.path); os.IsNotExist(err) {
 		return nil
 	}
@@ -78,10 +76,8 @@ func (t *CostTracker) load() error {
 	return json.Unmarshal(data, &t.Entries)
 }
 
+// save persists entries. Caller must hold mu.
 func (t *CostTracker) save() error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	if err := os.MkdirAll(filepath.Dir(t.path), 0755); err != nil {
 		return err
 	}

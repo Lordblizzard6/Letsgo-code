@@ -132,6 +132,38 @@ type ErrorEvent struct {
 // Idle signals the loop has no work; presentations may re-enable input.
 type Idle struct{}
 
+// SessionInfo is one row of the sessions panel (contract §3, SessionList).
+type SessionInfo struct {
+	ID        string
+	Name      string
+	UpdatedAt string
+}
+
+// SessionList is emitted by presentations after SessionList() (contract §2,
+// session:list); it feeds the sessions panel of TUI and GUI.
+type SessionList struct {
+	Sessions []SessionInfo
+}
+
+// SessionLoaded is emitted by presentations after SessionOpen(id) (contract
+// §2, session:loaded); it carries the full history of the resumed session.
+type SessionLoaded struct {
+	SessionID string
+	Messages  []api.Message
+}
+
+// ConfigChanged is emitted by presentations after SaveConfig (contract §2,
+// config:changed); consumers refresh model/theme in place without restarting.
+type ConfigChanged struct {
+	Config map[string]any
+}
+
+// SessionCleared is emitted by the engine after the `slash:{clear}` command
+// (contract §2, slash:{...}); presentations reset their view of the session.
+type SessionCleared struct {
+	SessionID string
+}
+
 func (UserMessageAppended) isEvent() {}
 func (StreamStart) isEvent()         {}
 func (StreamDelta) isEvent()         {}
@@ -152,3 +184,7 @@ func (QueueRuns) isEvent()           {}
 func (GrantsChanged) isEvent()       {}
 func (ErrorEvent) isEvent()          {}
 func (Idle) isEvent()                {}
+func (SessionList) isEvent()         {}
+func (SessionLoaded) isEvent()       {}
+func (ConfigChanged) isEvent()       {}
+func (SessionCleared) isEvent()      {}

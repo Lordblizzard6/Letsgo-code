@@ -66,3 +66,9 @@ temp/
 # Coverage reports
 coverage.html
 coverage.txt
+
+# Wails GUI (005)
+cmd/wails/frontend/node_modules/
+cmd/wails/frontend/dist/
+cmd/wails/frontend/.vite/
+cmd/wails/frontend/bindings/

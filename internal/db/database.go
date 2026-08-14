@@ -148,6 +148,49 @@ func GetHistory(sessionID string) ([]Message, error) {
 	return messages, nil
 }
 
+// GetMessages returns a paginated slice of a session's history, oldest first
+// (frontend-contract.md §3 `GetMessages(sessionId, limit?, offset?)`; used for
+// long transcripts, SC-009). limit<=0 means no limit; offset is the number of
+// rows to skip.
+func GetMessages(sessionID string, limit, offset int) ([]Message, error) {
+	dbMu.RLock()
+	defer dbMu.RUnlock()
+	q := "SELECT id, role, content, timestamp, kind FROM messages WHERE session_id = ? ORDER BY timestamp ASC, id ASC"
+	var args []interface{}
+	args = append(args, sessionID)
+	if limit > 0 {
+		q += " LIMIT ?"
+		args = append(args, limit)
+	}
+	if offset > 0 {
+		q += " OFFSET ?"
+		args = append(args, offset)
+	}
+	rows, err := DB.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []Message
+	for rows.Next() {
+		var id int64
+		var role, contentJSON, kind string
+		var timestamp time.Time
+		if err := rows.Scan(&id, &role, &contentJSON, &timestamp, &kind); err != nil {
+			return nil, err
+		}
+
+		var content interface{}
+		err = json.Unmarshal([]byte(contentJSON), &content)
+		if err != nil {
+			content = contentJSON
+		}
+		messages = append(messages, Message{ID: id, Role: role, Content: content, Timestamp: timestamp, Kind: kind})
+	}
+	return messages, nil
+}
+
 // PruneContext keeps only the last N messages to avoid token overflow
 func PruneContext(messages []api.Message, maxMessages int) []api.Message {
 	if len(messages) <= maxMessages {

@@ -40,7 +40,7 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+[Gates determined based on constitution file: Test-Last (tests at end of each story, not blocking implementation), Contract-Only Core Access, One Source of Truth, Secure Rendering, Simplicity/YAGNI]
 
 ## Project Structure
 

@@ -67,7 +67,11 @@ func (s *TodoStore) load() error {
 func (s *TodoStore) save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.saveLocked()
+}
 
+// saveLocked persists entries. Caller must hold mu.
+func (s *TodoStore) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
 		return err
 	}
@@ -93,7 +97,7 @@ func (s *TodoStore) add(description string) *TodoItem {
 	}
 
 	s.Items = append(s.Items, item)
-	s.save()
+	s.saveLocked()
 
 	return &item
 }
@@ -106,7 +110,7 @@ func (s *TodoStore) update(id, status string) (*TodoItem, error) {
 		if s.Items[i].ID == id {
 			s.Items[i].Status = status
 			s.Items[i].UpdatedAt = time.Now()
-			s.save()
+			s.saveLocked()
 			return &s.Items[i], nil
 		}
 	}
@@ -121,7 +125,7 @@ func (s *TodoStore) remove(id string) error {
 	for i := range s.Items {
 		if s.Items[i].ID == id {
 			s.Items = append(s.Items[:i], s.Items[i+1:]...)
-			s.save()
+			s.saveLocked()
 			return nil
 		}
 	}
@@ -143,7 +147,7 @@ func (s *TodoStore) clear() {
 	defer s.mu.Unlock()
 
 	s.Items = []TodoItem{}
-	s.save()
+	s.saveLocked()
 }
 
 func generateTodoID() string {

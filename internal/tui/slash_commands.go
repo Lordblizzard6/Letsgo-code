@@ -41,6 +41,9 @@ var (
 		{Name: "/tokens", Description: "Show token usage"},
 		{Name: "/compact", Description: "Compact conversation"},
 		{Name: "/save", Description: "Save session"},
+		{Name: "/sessions", Description: "List saved sessions"},
+		{Name: "/open", Description: "Resume a session: /open <id>"},
+		{Name: "/new", Description: "Create a new session"},
 		{Name: "/files", Description: "List files in context"},
 		{Name: "/diff", Description: "Show changes"},
 		{Name: "/settings", Description: "Open settings"},
@@ -86,10 +89,17 @@ func ProcessSlashCommand(input string) (response string, shouldContinue bool, sh
 		return handleCost(args), true, false
 	case "/tokens":
 		return handleTokens(args), true, false
-	case "/compact":
-		return handleCompact(), true, false
 	case "/save":
 		return handleSave(), true, false
+	case "/sessions":
+		return handleSessions(), true, false
+	case "/open":
+		if args == "" {
+			return "📂 Uso: /open <id>. Ejecuta /sessions para ver los ids.", true, false
+		}
+		return "📂 Retomando sesión " + args + "…", true, false
+	case "/new":
+		return "✨ Creando una nueva sesión…", true, false
 	case "/files":
 		return tools.GetContextFilesSummary(), true, false
 	case "/diff":
@@ -117,25 +127,44 @@ func SetSlashCommandSessionID(sessionID string) {
 	currentSlashSessionID = sessionID
 }
 
+// handleClear returns the presentation copy for /clear. The state change
+// itself is engine-owned (contract §2 slash:{clear}, T029): the TUI's enter
+// path delegates via engine.Send(SlashCommand{Name: "clear"}) and the engine
+// wipes memory + persistence and emits SessionCleared.
 func handleClear() string {
 	if currentSlashSessionID == "" {
 		fmt.Fprintln(os.Stderr, "[slash] /clear failed: empty session id")
 		return "❌ /clear no disponible: sesión actual no identificada"
 	}
-	if err := db.ClearSessionHistory(currentSlashSessionID); err != nil {
-		fmt.Fprintf(os.Stderr, "[slash] /clear failed: %v\n", err)
-		return fmt.Sprintf("❌ Error al limpiar conversación: %v", err)
-	}
-	if _, err := db.DB.Exec("DELETE FROM context_files WHERE session_id = ?", currentSlashSessionID); err != nil {
-		fmt.Fprintf(os.Stderr, "[slash] /clear failed deleting context_files: %v\n", err)
-		return fmt.Sprintf("❌ Error al limpiar archivos de contexto: %v", err)
-	}
-	if _, err := db.DB.Exec("DELETE FROM compact_history WHERE session_id = ?", currentSlashSessionID); err != nil {
-		fmt.Fprintf(os.Stderr, "[slash] /clear failed deleting compact_history: %v\n", err)
-		return fmt.Sprintf("❌ Error al limpiar historial compacto: %v", err)
-	}
-	fmt.Fprintf(os.Stderr, "[slash] /clear executed for session=%s\n", currentSlashSessionID)
+	fmt.Fprintf(os.Stderr, "[slash] /clear requested for session=%s\n", currentSlashSessionID)
 	return "🧹 Conversación limpiada en memoria activa y persistencia"
+}
+
+// handleSessions lists the persisted sessions via the contract (§3
+// ListSessions): the TUI shares the same DB as the GUI (T031, FR-006).
+func handleSessions() string {
+	sessions, err := db.ListSessions()
+	if err != nil {
+		return "❌ Error al listar sesiones: " + err.Error()
+	}
+	if len(sessions) == 0 {
+		return "📂 No hay sesiones guardadas. Usa /new para crear una."
+	}
+	var b strings.Builder
+	b.WriteString("📂 Sesiones guardadas:\n\n")
+	for i, s := range sessions {
+		if i >= 10 {
+			b.WriteString(fmt.Sprintf("\n... y %d más (usa /open <id> para retomar)\n", len(sessions)-10))
+			break
+		}
+		short := s.ID
+		if len(short) > 14 {
+			short = short[:14]
+		}
+		b.WriteString(fmt.Sprintf("  • `%s` %s (actualizado %s)\n", short, s.Name, s.UpdatedAt.Format("2006-01-02 15:04")))
+	}
+	b.WriteString("\nUsa /open <id> para retomar una sesión o /new para crear otra.")
+	return b.String()
 }
 
 func handleSave() string {
@@ -149,44 +178,6 @@ func handleSave() string {
 	}
 	fmt.Fprintf(os.Stderr, "[slash] /save executed for session=%s\n", currentSlashSessionID)
 	return "💾 Sesión guardada en DB correctamente"
-}
-
-func handleCompact() string {
-	if currentSlashSessionID == "" {
-		fmt.Fprintln(os.Stderr, "[slash] /compact failed: empty session id")
-		return "❌ /compact no disponible: sesión actual no identificada"
-	}
-	history, err := db.GetHistory(currentSlashSessionID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[slash] /compact failed loading history: %v\n", err)
-		return fmt.Sprintf("❌ Error al compactar: %v", err)
-	}
-	original := len(history)
-	if original <= 20 {
-		fmt.Fprintf(os.Stderr, "[slash] /compact skipped for session=%s messages=%d\n", currentSlashSessionID, original)
-		return "🗜️ No se requiere compactación (historial corto)"
-	}
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return fmt.Sprintf("❌ Error al compactar (tx begin): %v", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if _, err := tx.Exec("DELETE FROM messages WHERE session_id = ?", currentSlashSessionID); err != nil {
-		return fmt.Sprintf("❌ Error al compactar: %v", err)
-	}
-	for _, msg := range history[original-20:] {
-		if _, err := tx.Exec("INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)", currentSlashSessionID, msg.Role, msg.Content); err != nil {
-			return fmt.Sprintf("❌ Error al reescribir historial compacto: %v", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Sprintf("❌ Error al confirmar compactación: %v", err)
-	}
-	summary := fmt.Sprintf("Compacted from %d to %d messages (kept most recent).", original, 20)
-	_ = db.SaveCompactHistory(currentSlashSessionID, original, 20, summary)
-	fmt.Fprintf(os.Stderr, "[slash] /compact executed for session=%s original=%d compacted=%d\n", currentSlashSessionID, original, 20)
-	return "🗜️ Historial compactado y persistido"
 }
 
 func handleUndoRedo(action string) string {

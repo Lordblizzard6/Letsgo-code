@@ -17,7 +17,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.26'
     
     - name: Cache Go modules
       uses: actions/cache@v3
@@ -43,6 +43,47 @@ jobs:
         flags: unittests
         name: codecov-umbrella
 
+  gui:
+    name: GUI (Wails v3, cmd/wails)
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Install Wails v3 CLI
+      run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.7
+
+    - name: Generate bindings
+      working-directory: cmd/wails
+      run: |
+        $env:Path = "$(go env GOPATH)\bin;$env:Path"
+        wails3 generate bindings
+
+    - name: Install frontend deps
+      working-directory: cmd/wails/frontend
+      run: npm ci
+
+    - name: Frontend unit tests
+      working-directory: cmd/wails/frontend
+      run: npm test
+
+    - name: Build frontend
+      working-directory: cmd/wails/frontend
+      run: npm run build
+
+    - name: Build Go binary
+      run: go build ./cmd/wails/
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -54,7 +95,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.26'
     
     - name: Build
       run: go build -v -o letsgo ./
@@ -72,7 +113,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.26'
     
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v3
@@ -94,7 +135,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.26'
     
     - name: Build Linux/Mac
       if: matrix.os != 'windows-latest'

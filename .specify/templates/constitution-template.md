@@ -14,9 +14,9 @@
 <!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
 
 ### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
+<!-- Example: III. Test-Last (NON-NEGOTIABLE): automated tests are written and run AFTER implementation, batched at the end of each story/phase; they never gate mid-story construction -->
 [PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+<!-- Example: All automated tests are written and run AFTER implementation, batched at the end of each story/phase; tests never gate mid-story construction; each story's end-of-phase suite and manual validation form the verification gate -->
 
 ### [PRINCIPLE_4_NAME]
 <!-- Example: IV. Integration Testing -->

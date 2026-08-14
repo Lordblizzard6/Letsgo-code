@@ -1,0 +1,1 @@
+export * from "../bindings/github.com/user/go-claude-code/cmd/wails/services";

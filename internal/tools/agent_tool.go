@@ -53,6 +53,22 @@ func getAgentStore() *AgentStore {
 	return agentStoreInstance
 }
 
+// GetAgentStore returns the shared sub-agent store (005 T046; presentations
+// like the Wails TasksService list agents through it).
+func GetAgentStore() *AgentStore { return getAgentStore() }
+
+// ListAgents returns a snapshot of all agents (the shared store, kept in the
+// core so engine and GUI surfaces agree).
+func (s *AgentStore) ListAgents() []AgentState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]AgentState, 0, len(s.Agents))
+	for _, a := range s.Agents {
+		out = append(out, *a)
+	}
+	return out
+}
+
 func (s *AgentStore) load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -72,7 +88,11 @@ func (s *AgentStore) load() error {
 func (s *AgentStore) save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.saveLocked()
+}
 
+// saveLocked persists entries. Caller must hold mu.
+func (s *AgentStore) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
 		return err
 	}
@@ -102,7 +122,7 @@ func (s *AgentStore) create(goal, workingDir string) *AgentState {
 	}
 
 	s.Agents[agent.ID] = agent
-	s.save()
+	s.saveLocked()
 
 	return agent
 }
@@ -138,7 +158,7 @@ func (s *AgentStore) update(id string, updates map[string]interface{}) (*AgentSt
 	}
 
 	agent.UpdatedAt = time.Now()
-	s.save()
+	s.saveLocked()
 
 	return agent, nil
 }

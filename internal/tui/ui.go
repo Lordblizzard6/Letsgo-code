@@ -138,6 +138,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
+			if m.isStreaming {
+				// Cancelación limpia (contrato §1 `cancel`, C-002): el stream
+				// se aborta sin persistir el parcial (FR-007, SC-008).
+				m.engine.Send(engine.Cancel{})
+				return m, nil
+			}
 			m.engine.Stop()
 			return m, tea.Quit
 		case "ctrl+s":
@@ -251,10 +257,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			if m.currentMode == settingsMode && m.inModelMenu {
-				// Seleccionar el modelo actual
+				// Seleccionar el modelo actual: persiste vía SaveConfig del
+				// contrato (C-004) y refresca el motor in-place.
 				modelID := getModelID(m.selectedProvider, m.selectedModel)
 				if modelID != "" {
 					config.AppConfig.Model = modelID
+					if err := config.SaveConfig(); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to persist model: %v\n", err)
+					}
 					m.engine.RefreshClient()
 					m.currentMode = chatMode
 					m.inModelMenu = false
@@ -274,6 +284,76 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Process slash commands
 				if strings.HasPrefix(input, "/") {
+					// /compact delega en el comando del contrato (T018,
+					// SlashCommand/Compact): el core es el único dueño de la
+					// compactación (FR-001, no duplicar lógica).
+					if strings.HasPrefix(input, "/compact") {
+						history, err := db.GetHistory(m.sessionID)
+						response := "🗜️ Historial compactado y persistido"
+						if err == nil && len(history) <= 20 {
+							response = "🗜️ No se requiere compactación (historial corto)"
+						} else if err == nil {
+							m.engine.Send(engine.Compact{})
+						}
+						m.messages = append(m.messages, api.Message{Role: "assistant", Content: response})
+						m.updateViewportContent()
+						m.viewport.GotoBottom()
+						return m, nil
+					}
+					// /clear también es del core (T029): el motor limpia
+					// memoria + persistencia y emite SessionCleared; la TUI
+					// solo muestra la copia y resetea su vista con el evento.
+					if strings.HasPrefix(input, "/clear") {
+						m.engine.Send(engine.SlashCommand{Name: "clear"})
+						m.messages = append(m.messages, api.Message{Role: "assistant", Content: handleClear()})
+						m.updateViewportContent()
+						m.viewport.GotoBottom()
+						return m, nil
+					}
+					// Control de sesiones (T031, FR-006, C-003): crear y retomar
+					// sobre las funciones de sesión del contrato (db) + el
+					// comando SwitchSession del motor; la misma DB que la GUI.
+					if strings.HasPrefix(input, "/open ") {
+						sid := strings.TrimSpace(strings.TrimPrefix(input, "/open "))
+						if err := db.ResumeSession(sid); err != nil {
+							response := "❌ Error al retomar sesión: " + err.Error()
+							m.messages = append(m.messages, api.Message{Role: "assistant", Content: response})
+						} else {
+							m.engine.Send(engine.SwitchSession{SessionID: sid})
+							m.sessionID = sid
+							history, err := db.GetHistory(sid)
+							if err == nil {
+								m.messages = toTUIMessages(history)
+							}
+							m.totalTokens = 0
+							m.totalCost = 0
+							m.inputTokens = 0
+							m.outputTokens = 0
+							response := fmt.Sprintf("📂 Sesión retomada: %s (%d mensajes)", sid, len(history))
+							m.messages = append(m.messages, api.Message{Role: "assistant", Content: response})
+						}
+						m.updateViewportContent()
+						m.viewport.GotoBottom()
+						return m, nil
+					}
+					if strings.HasPrefix(input, "/new") {
+						sid, err := db.CreateSession("Nueva sesión", "")
+						if err != nil {
+							response := "❌ Error al crear sesión: " + err.Error()
+							m.messages = append(m.messages, api.Message{Role: "assistant", Content: response})
+						} else {
+							m.engine.Send(engine.SwitchSession{SessionID: sid})
+							m.sessionID = sid
+							m.totalTokens = 0
+							m.totalCost = 0
+							m.inputTokens = 0
+							m.outputTokens = 0
+							m.messages = append(m.messages, api.Message{Role: "assistant", Content: "✨ Nueva sesión creada: " + sid})
+						}
+						m.updateViewportContent()
+						m.viewport.GotoBottom()
+						return m, nil
+					}
 					SetSlashCommandSessionID(m.sessionID)
 					response, shouldContinue, shouldQuit := ProcessSlashCommand(input)
 					if shouldQuit {
@@ -334,10 +414,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// toTUIMessages maps the persisted session history (contract §3 GetHistory)
+// to the api.Message shape the model renders (T031, FR-006).
+func toTUIMessages(history []db.Message) []api.Message {
+	out := make([]api.Message, 0, len(history))
+	for _, h := range history {
+		out = append(out, api.Message{Role: h.Role, Content: h.Content})
+	}
+	return out
+}
+
 // handleEngineEvent translates an engine event into the model's view state.
 // The engine already persists every message; the TUI only renders.
-func (m model) handleEngineEvent(ev engine.Event) model {
-	switch e := ev.(type) {
+func (m model) handleEngineEvent(ev engine.Event) model {	switch e := ev.(type) {
+	case engine.StreamStart:
+		// El motor anuncia el inicio del stream (contrato §1 `stream:start`).
+		// El modelo reacciona al evento en lugar de depender solo del handler
+		// de Enter: cualquier camino que inicie un turno (retry, resume)
+		// refleja el estado de streaming correctamente.
+		m.isStreaming = true
+		m.currentResponse = ""
+		m.executingTool = ""
 	case engine.UserMessageAppended:
 		m.messages = append(m.messages, e.Message)
 		m.updateViewportContent()
@@ -418,6 +515,15 @@ func (m model) handleEngineEvent(ev engine.Event) model {
 				"  • Verifying your internet connection\n"+
 				"  • Trying a different model with Ctrl+S"))
 		m.messages = append(m.messages, api.Message{Role: "assistant", Content: errorContent.String()})
+		m.updateViewportContent()
+	case engine.SessionCleared:
+		// El core ya limpió memoria + persistencia (T029); la vista se resetea
+		// para reflejar el estado compartido sin tocar la DB.
+		m.messages = []api.Message{}
+		m.totalTokens = 0
+		m.totalCost = 0
+		m.inputTokens = 0
+		m.outputTokens = 0
 		m.updateViewportContent()
 	case engine.Idle:
 		m.isStreaming = false
@@ -670,6 +776,9 @@ var program *tea.Program
 
 func RunChat() error {
 	m := NewModel()
+	// El loop del motor se arranca aquí (T028): sin Start() los comandos del
+	// contrato se quedan en cola y el chat nunca procesa mensajes.
+	m.engine.Start()
 	program = tea.NewProgram(m, tea.WithAltScreen())
 
 	// Pump engine events into the bubbletea program.

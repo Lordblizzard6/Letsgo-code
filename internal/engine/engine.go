@@ -49,11 +49,7 @@ type Engine struct {
 	autoApprove map[string]bool
 
 	// streamFunc is injectable for tests; defaults to client.StreamRequest.
-	streamFunc func(req api.Request,
-		onDelta func(string),
-		onToolUse func(api.ToolUse),
-		onToolInput func(string, string),
-		onUsage func(int, int)) error
+	streamFunc StreamFunc
 
 	// In-flight stream cancellation.
 	streamCancel context.CancelFunc
@@ -84,6 +80,26 @@ type planState struct {
 	ID           string
 	instructions string
 	decided      chan bool
+}
+
+// StreamFunc is the provider streaming entry point used by runTurn. The
+// default is *api.Client.StreamRequest; tests and presentations that need
+// scripted providers can replace it via SetStreamFunc.
+type StreamFunc func(
+	req api.Request,
+	onDelta func(string),
+	onToolUse func(api.ToolUse),
+	onToolInput func(string, string),
+	onUsage func(int, int),
+) error
+
+// SetStreamFunc replaces the provider streaming implementation. It exists for
+// the conformance/teatest harnesses (005 frontend-contract C-001..C-006, TUI
+// teatest); production code never calls it.
+func (e *Engine) SetStreamFunc(fn StreamFunc) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.streamFunc = fn
 }
 
 // New creates an engine bound to a driver.
@@ -180,6 +196,14 @@ func (e *Engine) run() {
 			go e.handleSendMessage(c.Prompt, c.SessionID)
 		case Cancel:
 			e.handleCancel()
+		case SetModelCommand:
+			e.handleSetModel(c.Provider, c.Model)
+		case RememberCommand:
+			e.handleRemember(c.Key, c.Value)
+		case ResetMemoryCommand:
+			e.handleResetMemory()
+		case SlashCommand:
+			e.handleSlash(c.Name, c.Args)
 		case ApproveTool:
 			e.handleApproveTool(c.ToolCallID, true)
 		case RejectTool:
@@ -579,6 +603,68 @@ func (e *Engine) handleCancel() {
 	}
 }
 
+// handleSetModel implements contract §1 `setModel`: persists the model via
+// internal/config, refreshes the client in place and emits ConfigChanged
+// (C-004). The interface is never reinitialized.
+func (e *Engine) handleSetModel(provider, model string) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		e.emit(ErrorEvent{Message: "setModel: empty model id", Recoverable: true})
+		return
+	}
+	config.AppConfig.Model = model
+	if err := config.SaveConfig(); err != nil {
+		e.emit(ErrorEvent{Message: "setModel: " + err.Error(), Recoverable: true})
+		return
+	}
+	e.RefreshClient()
+	e.emit(ConfigChanged{Config: map[string]any{
+		"model":    model,
+		"provider": config.DetectProviderFromModel(model),
+	}})
+}
+
+// handleRemember implements contract §1 `remember` (session_memory).
+func (e *Engine) handleRemember(key, value string) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		e.emit(ErrorEvent{Message: "remember: empty key", Recoverable: true})
+		return
+	}
+	if err := db.SetMemory(key, value); err != nil {
+		e.emit(ErrorEvent{Message: "remember: " + err.Error(), Recoverable: true})
+	}
+}
+
+// handleResetMemory implements contract §1 `resetMemory`.
+func (e *Engine) handleResetMemory() {
+	mem, err := db.ListMemory()
+	if err != nil {
+		e.emit(ErrorEvent{Message: "resetMemory: " + err.Error(), Recoverable: true})
+		return
+	}
+	for k := range mem {
+		if err := db.DeleteMemory(k); err != nil {
+			e.emit(ErrorEvent{Message: "resetMemory: " + err.Error(), Recoverable: true})
+			return
+		}
+	}
+}
+
+// handleSlash dispatches contract §1 `slash:{...}`. Engine-owned names are
+// handled here; unknown names get an orientative ErrorEvent for the
+// presentation layer to interpret.
+func (e *Engine) handleSlash(name string, args []string) {
+	switch name {
+	case "compact":
+		e.handleCompact()
+	case "clear":
+		e.handleClear()
+	default:
+		e.emit(ErrorEvent{Message: "slash: unknown command /" + name, Recoverable: true})
+	}
+}
+
 // handleSteer injects a user instruction into the in-flight turn (FR-009).
 // The instruction is persisted as kind=user:steer and the current stream is
 // cancelled so the loop restarts with it appended to the context.
@@ -787,6 +873,28 @@ func (e *Engine) handleCompact() {
 	e.messages = compact
 	e.mu.Unlock()
 	_ = db.SaveCompactHistory(sid, orig, len(compact), "compact")
+}
+
+// handleClear owns the `slash:{clear}` state change: the engine resets its
+// in-memory context and wipes the session's persisted history (messages,
+// context files, compact history). Presentations mirror it via SessionCleared
+// instead of touching the DB themselves (contract §3).
+func (e *Engine) handleClear() {
+	e.mu.Lock()
+	sid := e.sessionID
+	e.messages = []api.Message{}
+	e.mu.Unlock()
+
+	_ = db.ClearSessionHistory(sid)
+	if _, err := db.DB.Exec("DELETE FROM context_files WHERE session_id = ?", sid); err != nil {
+		e.emit(ErrorEvent{Message: "clear: " + err.Error(), Recoverable: true})
+		return
+	}
+	if _, err := db.DB.Exec("DELETE FROM compact_history WHERE session_id = ?", sid); err != nil {
+		e.emit(ErrorEvent{Message: "clear: " + err.Error(), Recoverable: true})
+		return
+	}
+	e.emit(SessionCleared{SessionID: sid})
 }
 
 func (e *Engine) finish(sid string, messages []api.Message) {

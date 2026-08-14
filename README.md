@@ -33,22 +33,20 @@ letsgo login
 letsgo chat
 ```
 
-## 🖥️ Desktop GUI (Fyne)
+## 🖥️ Desktop GUI (Wails)
 
 The GUI provides a 1:1 surface for the CLI capabilities: chat, sessions, agent
 mode with approvals, git/MCP/plugins views, settings parity and usage tracking.
+It runs inside the same `letsgo` executable — no separate Wails binary.
 
 ```bash
 # Run the desktop GUI
-go run . gui
-
-# Or build the binary
-go build -o letsgo . && ./letsgo gui
+letsgo gui
 ```
 
-**Requirements:** Go 1.21+ and a C compiler for Fyne (Windows: MSYS2/MinGW or
-TDM-GCC — verify `gcc -v` in `PATH`). First build downloads
-`fyne.io/fyne/v2` and can take minutes.
+**WebView2:** the GUI renders via the Microsoft WebView2 runtime. It is embedded
+in production builds (`wails3 build -webview2 embed`); otherwise it must be
+installed on the system.
 
 **Shortcuts (keyboard-only, SC-009):**
 

@@ -66,7 +66,11 @@ func (m *TaskOutputManager) load() {
 func (m *TaskOutputManager) save() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.saveLocked()
+}
 
+// saveLocked persists outputs. Caller must hold mu.
+func (m *TaskOutputManager) saveLocked() {
 	// Filter to only completed outputs and limit to last 100
 	var outputs []*TaskOutput
 	for _, o := range m.outputs {
@@ -122,7 +126,7 @@ func (m *TaskOutputManager) CompleteOutput(taskID string, exitCode int, err stri
 		o.ExitCode = exitCode
 		o.Error = err
 		o.CompletedAt = time.Now()
-		m.save()
+		m.saveLocked()
 	}
 }
 

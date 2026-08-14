@@ -1,12 +1,15 @@
 package engine
 
-// Command is sent by presentations into the engine loop
-// (contracts/engine-contract.md).
+// Command is sent by presentations into the engine loop. This is the command
+// surface of frontend-contract.md §1 (specs/005-bubbletea-tui-wails/
+// contracts/frontend-contract.md): the TUI and the GUI drive the core only
+// through these types (FR-001). Conformance: C-001 (send), C-002 (cancel).
 type Command interface {
 	isCommand()
 }
 
-// SendMessage starts a user turn; the user message is persisted first.
+// SendMessage starts a user turn; the user message is persisted first
+// (contract §1 `send`; C-001).
 type SendMessage struct {
 	Text      string
 	SessionID string
@@ -18,8 +21,36 @@ type SendTask struct {
 	SessionID string
 }
 
-// Cancel aborts the in-flight stream/tool cycle; the last complete message is kept.
+// Cancel aborts the in-flight stream/tool cycle; the last complete message is
+// kept and partial text is never persisted (contract §1 `cancel`; C-002).
 type Cancel struct{}
+
+// SetModelCommand persists the model via internal/config, refreshes the engine
+// client in place and emits ConfigChanged — the interface is not
+// reinitialized (contract §1 `setModel`; C-004).
+type SetModelCommand struct {
+	Provider string
+	Model    string
+}
+
+// RememberCommand persists a memory entry via internal/db
+// (contract §1 `remember`).
+type RememberCommand struct {
+	Key   string
+	Value string
+}
+
+// ResetMemoryCommand clears all memory entries via internal/db
+// (contract §1 `resetMemory`).
+type ResetMemoryCommand struct{}
+
+// SlashCommand dispatches slash actions (contract §1 `slash:{...}`). Names the
+// engine owns (compact) are handled here; unknown names are reported with an
+// orientative ErrorEvent so presentations can render their own handlers.
+type SlashCommand struct {
+	Name string
+	Args []string
+}
 
 // ApproveTool approves a specific pending tool call, which then executes.
 type ApproveTool struct {
@@ -102,6 +133,10 @@ type Stop struct{}
 func (SendMessage) isCommand()    {}
 func (SendTask) isCommand()       {}
 func (Cancel) isCommand()         {}
+func (SetModelCommand) isCommand()      {}
+func (RememberCommand) isCommand()      {}
+func (ResetMemoryCommand) isCommand()   {}
+func (SlashCommand) isCommand()         {}
 func (ApproveTool) isCommand()    {}
 func (RejectTool) isCommand()     {}
 func (SetAutoApprove) isCommand() {}
