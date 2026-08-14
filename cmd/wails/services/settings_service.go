@@ -26,6 +26,11 @@ func (s *SettingsService) SaveConfig(partial map[string]any) (config.Config, err
 	if err := config.SaveConfig(); err != nil {
 		return config.AppConfig, err
 	}
+	// Apply to the running engine without restart (FR-016, C-004): the same
+	// engine instance keeps the session and rebuilds its API client.
+	if s.hub != nil && s.hub.Engine != nil {
+		s.hub.Engine.RefreshClient()
+	}
 	s.hub.emit("config:changed", map[string]any{"config": config.AppConfig})
 	return config.AppConfig, nil
 }

@@ -72,3 +72,7 @@ cmd/wails/frontend/node_modules/
 cmd/wails/frontend/dist/
 cmd/wails/frontend/.vite/
 cmd/wails/frontend/bindings/
+
+# Playwright (005, T085)
+cmd/wails/frontend/test-results/
+cmd/wails/frontend/playwright-report/

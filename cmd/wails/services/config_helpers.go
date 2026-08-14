@@ -4,12 +4,39 @@ import (
 	"github.com/user/go-claude-code/internal/config"
 )
 
+// pascalKey maps the PascalCase field names produced by the Wails bindings
+// (Config.APIKey, Config.AnthropicAPIKey, ...) to the snake_case keys of the
+// core contract (frontend-contract §3 SaveConfig).
+var pascalKey = map[string]string{
+	"APIKey":           "api_key",
+	"AnthropicAPIKey":  "anthropic_api_key",
+	"OpenAIAPIKey":     "openai_api_key",
+	"GroqAPIKey":       "groq_api_key",
+	"OpenRouterAPIKey": "openrouter_api_key",
+	"Model":            "model",
+	"BaseURL":          "base_url",
+	"Shell":            "shell",
+	"Verbose":          "verbose",
+	"Temperature":      "temperature",
+	"MaxTokens":        "max_tokens",
+	"Stream":           "stream",
+	"AutoApprove":      "auto_approve",
+	"ThemeVariant":     "theme",
+	"Statusline":       "statusline",
+	"Rail":             "rail",
+}
+
 // applyConfig merges a JSON payload (as produced by the Wails bindings) over
 // config.AppConfig. It maps only the well-known keys of the core contract so
-// arbitrary payloads cannot corrupt the config file.
+// arbitrary payloads cannot corrupt the config file. Both the snake_case keys
+// of the core contract and the PascalCase field names of the generated
+// bindings are accepted.
 func applyConfig(partial map[string]any) error {
 	c := &config.AppConfig
 	for key, val := range partial {
+		if snake, ok := pascalKey[key]; ok {
+			key = snake
+		}
 		switch key {
 		case "api_key":
 			c.APIKey = asString(val)

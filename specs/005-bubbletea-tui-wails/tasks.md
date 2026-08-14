@@ -187,17 +187,17 @@
 
 ### Implementación para User Story 4
 
-- [ ] T078 [US4] Gate de primer arranque en `cmd/wails/gui/gui.go` (o main wrapper) y `cmd/wails/frontend/src/App.svelte`: al arrancar se consulta `GetConfig` del contrato; sin key → renderizar solo el flujo de configuración y bloquear el chat hasta tener key válida (FR-011, gui-contract §6).
-- [ ] T079 [P] [US4] ProviderSetup.svelte en `cmd/wails/frontend/src/components/ProviderSetup.svelte`: formulario proveedor + API key con validación; al guardar → `SaveConfig` + refresco del motor → habilitar el chat (FR-011, SC-007).
-- [ ] T080 [US4] Aplicar cambios de Configuración al motor sin reinicio: SettingsOverlay + SettingsService emiten `config:changed` y refrescan el cliente del motor; verificación cruzada: la TUI (`letsgo chat`) lee la misma config persistida (FR-010, FR-016, C-004).
-- [ ] T081 [P] [US4] Manejo de errores de red/API en `cmd/wails/frontend/src/components/Chat.svelte`: banner claro con orientación y botón de reintentar; historial intacto (FR-013, SC-011).
+- [x] T078 [US4] Gate de primer arranque en `cmd/wails/gui/gui.go` (o main wrapper) y `cmd/wails/frontend/src/App.svelte`: al arrancar se consulta `GetConfig` del contrato; sin key → renderizar solo el flujo de configuración y bloquear el chat hasta tener key válida (FR-011, gui-contract §6).
+- [x] T079 [P] [US4] ProviderSetup.svelte en `cmd/wails/frontend/src/components/ProviderSetup.svelte`: formulario proveedor + API key con validación; al guardar → `SaveConfig` + refresco del motor → habilitar el chat (FR-011, SC-007).
+- [x] T080 [US4] Aplicar cambios de Configuración al motor sin reinicio: SettingsOverlay + SettingsService emiten `config:changed` y refrescan el cliente del motor; verificación cruzada: la TUI (`letsgo chat`) lee la misma config persistida (FR-010, FR-016, C-004).
+- [x] T081 [P] [US4] Manejo de errores de red/API en `cmd/wails/frontend/src/components/Chat.svelte`: banner claro con orientación y botón de reintentar; historial intacto (FR-013, SC-011).
 
 ### Tests para User Story 4 (Test-Last, constitución I — Vitest + Playwright) ⚠️
 
-- [ ] T082 [P] [US4] TestVitestOnboarding en `cmd/wails/frontend/src/tests/onboarding.test.ts`: con `GetConfig` mockeado sin key, la única superficie es el flujo de proveedor/key; el chat se habilita solo tras guardar una key válida (FR-011, gui-contract §6).
-- [ ] T083 [P] [US4] TestSettingsServiceRefresh en `cmd/wails/services/settings_service_test.go`: `SaveConfig` persiste en `internal/config` y emite `config:changed` que refresca el motor sin reiniciar (FR-010/FR-016, C-004).
-- [ ] T084 [P] [US4] TestVitestErrorStates en `cmd/wails/frontend/src/tests/errors.test.ts`: `stream:error` → mensaje orientativo (revisar key/conexión/modelo) y la conversación previa permanece intacta (FR-013, SC-011, C-005).
-- [ ] T085 [P] [US4] TestPlaywrightOnboardingE2E en `cmd/wails/frontend/src/tests/e2e/onboarding.spec.ts`: arrancar con la config de keys borrada (como J4) → flujo key→modelo→chat en ≤4 acciones (FR-011, SC-007).
+- [x] T082 [P] [US4] TestVitestOnboarding en `cmd/wails/frontend/src/tests/onboarding.test.ts`: con `GetConfig` mockeado sin key, la única superficie es el flujo de proveedor/key; el chat se habilita solo tras guardar una key válida (FR-011, gui-contract §6).
+- [x] T083 [P] [US4] TestSettingsServiceRefresh en `cmd/wails/services/settings_service_test.go`: `SaveConfig` persiste en `internal/config` y emite `config:changed` que refresca el motor sin reiniciar (FR-010/FR-016, C-004).
+- [x] T084 [P] [US4] TestVitestErrorStates en `cmd/wails/frontend/src/tests/errors.test.ts`: `stream:error` → mensaje orientativo (revisar key/conexión/modelo) y la conversación previa permanece intacta (FR-013, SC-011, C-005).
+- [x] T085 [P] [US4] TestPlaywrightOnboardingE2E en `cmd/wails/frontend/src/tests/e2e/onboarding.spec.ts`: arrancar con la config de keys borrada (como J4) → flujo key→modelo→chat en ≤4 acciones (FR-011, SC-007).
 
 **Checkpoint**: US4 independiente — la GUI v1 es autosuficiente: onboarding, configuración compartida y errores orientativos (J4). G-1 cerrado para US3+US4 (cada flujo del gui-contract tiene su test).
 

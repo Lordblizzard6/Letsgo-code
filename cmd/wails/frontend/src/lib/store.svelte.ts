@@ -303,9 +303,10 @@ function wireEngineEvents() {
     if (Array.isArray(ev.data)) useSession.setSessions(ev.data as Session[]);
   });
   Events.On("config:changed", (ev: any) => {
-    if (ev.data) {
-      useConfig.setConfig(ev.data as Config);
-      const variant = (ev.data as Config).ThemeVariant;
+    const payload = ev.data?.config ?? ev.data;
+    if (payload) {
+      useConfig.setConfig(payload as Config);
+      const variant = (payload as Config).ThemeVariant;
       if (variant === "dark" || variant === "light") useTheme.setTheme(variant);
     }
   });
