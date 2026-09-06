@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -256,8 +257,9 @@ func (e *Engine) handleSendMessage(text, sessionID string) {
 	driver := e.driver
 	e.mu.Unlock()
 
-	userMsg := api.Message{Role: "user", Content: text}
-	e.emit(UserMessageAppended{Message: userMsg})
+	expandedText := expandMentions(text)
+	userMsg := api.Message{Role: "user", Content: expandedText}
+	e.emit(UserMessageAppended{Message: api.Message{Role: "user", Content: text}})
 	_ = db.SaveMessage(sid, "user", text)
 	messages := append(e.messages, userMsg)
 
@@ -368,15 +370,30 @@ func (e *Engine) runTurn(sid string, messages []api.Message, client *api.Client)
 	}()
 
 	cwd, _ := os.Getwd()
-	systemPrompt := api.GetSystemPrompt(config.AppConfig.Model, cwd)
-	pruned := db.PruneContext(messages, 10)
+	isPlan := e.planGateActive()
+	model := config.AppConfig.Model
+	var systemPrompt string
+	var toolDefs []api.Tool
+
+	if isPlan {
+		if config.AppConfig.PlanModel != "" {
+			model = config.AppConfig.PlanModel
+		}
+		systemPrompt = api.GetPlanSystemPrompt(model, cwd)
+		toolDefs = tools.GetPlanToolDefinitions()
+	} else {
+		systemPrompt = api.GetBuildSystemPrompt(model, cwd)
+		toolDefs = tools.GetToolDefinitions()
+	}
+
+	pruned := db.PruneContext(messages, 50)
 	req := api.Request{
-		Model:     config.AppConfig.Model,
+		Model:     model,
 		System:    systemPrompt,
 		MaxTokens: config.AppConfig.MaxTokens,
 		Stream:    true,
 		Messages:  pruned,
-		Tools:     tools.GetToolDefinitions(),
+		Tools:     toolDefs,
 	}
 
 	requestID := uuid.NewString()
@@ -476,11 +493,36 @@ func (e *Engine) runTurn(sid string, messages []api.Message, client *api.Client)
 		return turnResult{messages: messages, err: err, cancelled: cancelled}
 	}
 
-	// Persist the assistant message if we have content.
+	// Assemble accumulated streamed tool input arguments into pending tools
+	for i := range pending {
+		if b, ok := toolInputs[pending[i].ID]; ok && b.Len() > 0 {
+			var m map[string]interface{}
+			if err := json.Unmarshal([]byte(b.String()), &m); err == nil {
+				pending[i].Input = m
+			} else {
+				pending[i].Input = b.String()
+			}
+		}
+	}
+
+	// Persist the assistant message if we have content or tool calls.
 	assistantText := text.String()
-	if assistantText != "" {
-		_ = db.SaveMessage(sid, "assistant", assistantText)
-		messages = append(messages, api.Message{Role: "assistant", Content: assistantText})
+	if assistantText != "" || len(pending) > 0 {
+		if len(pending) > 0 {
+			var blocks []api.ContentBlock
+			if assistantText != "" {
+				blocks = append(blocks, api.ContentBlock{Type: "text", Text: assistantText})
+			}
+			for _, tu := range pending {
+				tuCopy := tu
+				blocks = append(blocks, api.ContentBlock{Type: "tool_use", ToolUse: &tuCopy})
+			}
+			_ = db.SaveMessage(sid, "assistant", blocks)
+			messages = append(messages, api.Message{Role: "assistant", Content: blocks})
+		} else {
+			_ = db.SaveMessage(sid, "assistant", assistantText)
+			messages = append(messages, api.Message{Role: "assistant", Content: assistantText})
+		}
 		e.emit(StreamDone{MessageID: uuid.NewString()})
 	}
 
@@ -502,7 +544,8 @@ func (e *Engine) runToolCycle(sid string, messages []api.Message, pending []api.
 		}
 
 		cat := toolCategory(tu.Name)
-		granted := driver.SessionGranted(sid, cat)
+		cwd, _ := os.Getwd()
+		granted := driver.SessionGranted(sid, cat) || IsProjectGranted(cwd, cat)
 		autoApproved := auto[cat] || driver.AutoApprove(cat) || granted
 		if autoApproved {
 			e.emit(ToolRequested{ToolCallID: tu.ID, Name: tu.Name, Input: input, AutoApproved: true})
@@ -843,6 +886,11 @@ func (e *Engine) handleSetAutoApprove(category string, enabled bool) {
 	e.mu.Unlock()
 }
 
+// SwitchSession switches the engine to a session immediately and reloads its history.
+func (e *Engine) SwitchSession(sessionID string) {
+	e.handleSwitchSession(sessionID)
+}
+
 func (e *Engine) handleSwitchSession(sessionID string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -868,7 +916,7 @@ func (e *Engine) handleCompact() {
 	messages := e.messages
 	e.mu.Unlock()
 	orig := len(messages)
-	compact := db.PruneContext(messages, 10)
+	compact := db.PruneContext(messages, 25)
 	e.mu.Lock()
 	e.messages = compact
 	e.mu.Unlock()
@@ -1058,4 +1106,32 @@ func planFilesOf(pending []api.ToolUse) []string {
 		}
 	}
 	return files
+}
+
+// expandMentions replaces @path references in user text with formatted file contents.
+func expandMentions(text string) string {
+	if !strings.Contains(text, "@") {
+		return text
+	}
+	words := strings.Fields(text)
+	var out []string
+	for _, word := range words {
+		if strings.HasPrefix(word, "@") && len(word) > 1 {
+			target := strings.Trim(word[1:], `",':;`)
+			// Clean path
+			cleaned := filepath.Clean(target)
+			if info, err := os.Stat(cleaned); err == nil && !info.IsDir() {
+				if data, err := os.ReadFile(cleaned); err == nil {
+					content := string(data)
+					if len(content) > 4000 {
+						content = content[:4000] + "\n... [truncated]"
+					}
+					out = append(out, fmt.Sprintf("\n📄 %s:\n```\n%s\n```\n", target, content))
+					continue
+				}
+			}
+		}
+		out = append(out, word)
+	}
+	return strings.Join(out, " ")
 }

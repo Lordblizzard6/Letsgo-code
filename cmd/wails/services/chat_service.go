@@ -1,6 +1,7 @@
 package services
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -43,6 +44,21 @@ func (s *ChatService) Stop() {
 
 // Send submits a user message to the conversation (contract §1 send).
 func (s *ChatService) Send(text string) {
+	sessionID := ""
+	if s.hub != nil && s.hub.Engine != nil {
+		sessionID = s.hub.Engine.SessionID()
+	}
+	s.SendInSession(text, sessionID)
+}
+
+// SendInSession submits a user message ensuring the target session is switched and linked.
+func (s *ChatService) SendInSession(text string, sessionID string) {
+	if s.hub == nil || s.hub.Engine == nil {
+		return
+	}
+	if sessionID != "" {
+		s.hub.Engine.SwitchSession(sessionID)
+	}
 	s.hub.Engine.Send(engine.SendMessage{
 		Text:      text,
 		SessionID: s.hub.Engine.SessionID(),
@@ -58,6 +74,21 @@ func (s *ChatService) Approve(callID string, allow bool) {
 	if !s.hub.resolveApproval(callID, allow) {
 		s.hub.emit("tool:request:expired", map[string]any{"call_id": callID})
 	}
+}
+
+// ApproveScope answers a pending tool approval with a scope: "once", "chat", "project", "deny".
+func (s *ChatService) ApproveScope(callID string, scope string, toolName string) {
+	allow := scope != "deny"
+	if scope == "chat" && s.hub.Engine != nil {
+		cat := engine.ToolCategory(toolName)
+		s.hub.Engine.Send(engine.GrantSession{SessionID: s.hub.Engine.SessionID(), Category: cat, Allow: true})
+	} else if scope == "project" && s.hub.Engine != nil {
+		cat := engine.ToolCategory(toolName)
+		cwd, _ := os.Getwd()
+		_ = engine.GrantProject(cwd, cat)
+		s.hub.Engine.Send(engine.GrantSession{SessionID: s.hub.Engine.SessionID(), Category: cat, Allow: true})
+	}
+	s.Approve(callID, allow)
 }
 
 // Busy reports whether the engine is mid-turn (feeding the Detener button

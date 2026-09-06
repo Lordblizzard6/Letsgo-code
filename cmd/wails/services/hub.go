@@ -1,6 +1,9 @@
 package services
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/user/go-claude-code/internal/engine"
@@ -20,6 +23,7 @@ type Hub struct {
 
 	mu               sync.Mutex
 	pendingApprovals map[string]chan bool
+	currentProject   string
 }
 
 // NewHub creates a hub with a no-op emitter; main.go replaces Emit with the
@@ -68,4 +72,47 @@ func (h *Hub) emit(name string, data any) {
 		return
 	}
 	h.Emit(name, data)
+}
+
+// SetCurrentProject changes the working directory and tracks the active project path.
+func (h *Hub) SetCurrentProject(path string) error {
+	var finalPath string
+	if path != "" {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
+		info, err := os.Stat(abs)
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("not a directory: %s", abs)
+		}
+		if err := os.Chdir(abs); err != nil {
+			return err
+		}
+		finalPath = abs
+	}
+
+	h.mu.Lock()
+	h.currentProject = finalPath
+	h.mu.Unlock()
+
+	name := ""
+	if finalPath != "" {
+		name = filepath.Base(finalPath)
+	}
+	h.emit("project:changed", map[string]any{
+		"project_path": finalPath,
+		"name":         name,
+	})
+	return nil
+}
+
+// GetCurrentProject returns the active project path, or "" if none.
+func (h *Hub) GetCurrentProject() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.currentProject
 }

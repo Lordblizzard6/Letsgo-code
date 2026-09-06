@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/user/go-claude-code/internal/engine"
@@ -163,4 +164,134 @@ func (s *GitService) Push() (string, error) {
 		return "no branch to push", nil
 	}
 	return runGit(s.Dir(), "push", "-u", "origin", branch)
+}
+
+// GitDiffFile represents a changed file in the repository.
+type GitDiffFile struct {
+	Path      string `json:"path"`
+	Name      string `json:"name"`
+	Dir       string `json:"dir"`
+	Status    string `json:"status"` // "M", "A", "D", "??"
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+	Staged    bool   `json:"staged"`
+}
+
+// GitDiffSummary groups changed files and unified diff for the lateral panel.
+type GitDiffSummary struct {
+	IsRepo           bool          `json:"is_repo"`
+	Branch           string        `json:"branch"`
+	Clean            bool          `json:"clean"`
+	UncommittedCount int           `json:"uncommitted_count"`
+	CommittedCount   int           `json:"committed_count"`
+	Files            []GitDiffFile `json:"files"`
+	RawDiff          string        `json:"raw_diff"`
+}
+
+// DiffSummary returns a structured summary of changed files and raw diff.
+func (s *GitService) DiffSummary() GitDiffSummary {
+	dir := s.Dir()
+	out, err := runGit(dir, "rev-parse", "--is-inside-work-tree")
+	if err != nil || strings.TrimSpace(out) != "true" {
+		return GitDiffSummary{IsRepo: false, Clean: true}
+	}
+
+	branch := s.CurrentBranch()
+	statusOut, _ := runGit(dir, "status", "--porcelain")
+	rawDiff, _ := runGit(dir, "diff")
+
+	// Parse numstat for additions and deletions (unstaged and staged)
+	statsMap := make(map[string][2]int) // path -> [additions, deletions]
+	parseNumstat := func(output string) {
+		for _, line := range strings.Split(output, "\n") {
+			parts := strings.Split(strings.TrimSpace(line), "\t")
+			if len(parts) >= 3 {
+				add, _ := strconv.Atoi(parts[0])
+				del, _ := strconv.Atoi(parts[1])
+				p := parts[2]
+				cur := statsMap[p]
+				statsMap[p] = [2]int{cur[0] + add, cur[1] + del}
+			}
+		}
+	}
+	numstatOut, _ := runGit(dir, "diff", "--numstat")
+	parseNumstat(numstatOut)
+	numstatCached, _ := runGit(dir, "diff", "--cached", "--numstat")
+	parseNumstat(numstatCached)
+
+	// Count commits on current branch
+	committedCount := 0
+	if revOut, err := runGit(dir, "rev-list", "--count", "HEAD"); err == nil {
+		if c, err := strconv.Atoi(strings.TrimSpace(revOut)); err == nil {
+			committedCount = c
+		}
+	}
+
+	var files []GitDiffFile
+	lines := strings.Split(statusOut, "\n")
+	uncommittedCount := 0
+	for _, l := range lines {
+		l = strings.TrimRight(l, "\r\n")
+		if len(l) < 3 {
+			continue
+		}
+		status := strings.TrimSpace(l[0:2])
+		path := strings.TrimSpace(l[3:])
+		path = strings.Trim(path, "\"")
+		if path != "" {
+			staged := l[0] != ' ' && l[0] != '?'
+			stat := statsMap[path]
+			cleanDir := filepath.Dir(path)
+			if cleanDir == "." {
+				cleanDir = ""
+			} else {
+				cleanDir = filepath.ToSlash(cleanDir)
+			}
+			files = append(files, GitDiffFile{
+				Path:      path,
+				Name:      filepath.Base(path),
+				Dir:       cleanDir,
+				Status:    status,
+				Additions: stat[0],
+				Deletions: stat[1],
+				Staged:    staged,
+			})
+			uncommittedCount++
+		}
+	}
+
+	return GitDiffSummary{
+		IsRepo:           true,
+		Branch:           branch,
+		Clean:            len(files) == 0,
+		UncommittedCount: uncommittedCount,
+		CommittedCount:   committedCount,
+		Files:            files,
+		RawDiff:          rawDiff,
+	}
+}
+
+// DiffFile returns the diff for a specific file path.
+func (s *GitService) DiffFile(filePath string) (string, error) {
+	return runGit(s.Dir(), "diff", "--", filePath)
+}
+
+// StageFile stages a file into git index.
+func (s *GitService) StageFile(filePath string) (string, error) {
+	return runGit(s.Dir(), "add", "--", filePath)
+}
+
+// UnstageFile unstages a file from git index.
+func (s *GitService) UnstageFile(filePath string) (string, error) {
+	return runGit(s.Dir(), "restore", "--staged", "--", filePath)
+}
+
+// StageAll stages all changes.
+func (s *GitService) StageAll() (string, error) {
+	return runGit(s.Dir(), "add", "-A")
+}
+
+// UnstageAll unstages all changes.
+func (s *GitService) UnstageAll() (string, error) {
+	return runGit(s.Dir(), "restore", "--staged", ".")
 }

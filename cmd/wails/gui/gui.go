@@ -29,12 +29,25 @@ import (
 // Research.md D4: production builds embed the fixed WebView2 runtime
 // (`-webview2 embed`); D2: the GUI is launched by the same executable as the
 // TUI (`letsgo.exe gui`, see cmd/gui.go) — no separate Wails binary.
+// Run runs the GUI with an empty initial project scope (unscoped).
 func Run(assets fs.FS) error {
+	return RunWithProject(assets, "")
+}
+
+// RunWithProject wires the shared core (engine + config) behind the bound services of
+// US3 and blocks until the window closes. If initialProjectDir is provided, it synchronizes
+// the process working directory and initializes the active project scope.
+func RunWithProject(assets fs.FS, initialProjectDir string) error {
 	if err := config.LoadConfig(); err != nil {
 		log.Printf("config: %v (defaults in memory)", err)
 	}
 
 	hub := services.NewHub()
+	if initialProjectDir != "" {
+		if err := hub.SetCurrentProject(initialProjectDir); err != nil {
+			log.Printf("initial project directory: %v", err)
+		}
+	}
 	driver := services.NewToolbarDriver(hub)
 	engineInstance := engine.New(driver)
 	hub.SetEngine(engineInstance)
@@ -67,9 +80,7 @@ func Run(assets fs.FS) error {
 	// Route Go→frontend events through the Wails Event bus, batched ~50ms by
 	// the chat pump (research.md D3, frontend-contract §2).
 	hub.Emit = func(name string, data any) {
-		if !app.Event.Emit(name, data) {
-			log.Printf("wails emit %s cancelled", name)
-		}
+		app.Event.Emit(name, data)
 	}
 
 	engineInstance.Start()
@@ -83,9 +94,11 @@ func Run(assets fs.FS) error {
 	})
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "LetsGO",
-		Width:  1200,
-		Height: 760,
+		Title:     "LetsGO",
+		Width:     1280,
+		Height:    850,
+		MinWidth:  960,
+		MinHeight: 600,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,

@@ -13,7 +13,11 @@ var pascalKey = map[string]string{
 	"OpenAIAPIKey":     "openai_api_key",
 	"GroqAPIKey":       "groq_api_key",
 	"OpenRouterAPIKey": "openrouter_api_key",
+	"GeminiAPIKey":     "gemini_api_key",
+	"DeepSeekAPIKey":   "deepseek_api_key",
+	"OllamaBaseURL":    "ollama_base_url",
 	"Model":            "model",
+	"PlanModel":        "plan_model",
 	"BaseURL":          "base_url",
 	"Shell":            "shell",
 	"Verbose":          "verbose",
@@ -48,8 +52,16 @@ func applyConfig(partial map[string]any) error {
 			c.GroqAPIKey = asString(val)
 		case "openrouter_api_key":
 			c.OpenRouterAPIKey = asString(val)
+		case "gemini_api_key":
+			c.GeminiAPIKey = asString(val)
+		case "deepseek_api_key":
+			c.DeepSeekAPIKey = asString(val)
+		case "ollama_base_url":
+			c.OllamaBaseURL = asString(val)
 		case "model":
 			c.Model = asString(val)
+		case "plan_model":
+			c.PlanModel = asString(val)
 		case "base_url":
 			c.BaseURL = asString(val)
 		case "shell":

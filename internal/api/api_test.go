@@ -93,3 +93,31 @@ func TestResolveGroqModel(t *testing.T) {
 		}
 	}
 }
+
+func TestDiscoverModels(t *testing.T) {
+	providers := []string{"ollama", "groq", "openrouter", "openai", "gemini", "anthropic", "deepseek"}
+	for _, p := range providers {
+		models, err := DiscoverModels(p, "", "")
+		if err != nil {
+			t.Fatalf("DiscoverModels(%q) failed: %v", p, err)
+		}
+		if len(models) == 0 {
+			t.Errorf("DiscoverModels(%q) returned empty list", p)
+		}
+	}
+}
+
+func TestResolveOpenRouterModel_Gemini(t *testing.T) {
+	m := ResolveOpenRouterModel("gemini")
+	if m != "google/gemini-2.0-flash-001" {
+		t.Errorf("Expected google/gemini-2.0-flash-001, got %s", m)
+	}
+}
+
+func TestSystemPrompt_ProjectRules(t *testing.T) {
+	prompt := GetBuildSystemPrompt("claude-3-5-sonnet", ".")
+	if len(prompt) == 0 {
+		t.Fatal("System prompt should not be empty")
+	}
+}
+

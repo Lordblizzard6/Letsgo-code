@@ -32,15 +32,37 @@ func (t *WriteFileTool) Definition() api.Tool {
 
 func (t *WriteFileTool) Execute(input interface{}) (string, error) {
 	m, ok := input.(map[string]interface{})
-	if !ok { return "", fmt.Errorf("invalid input") }
-	
+	if !ok {
+		return "", fmt.Errorf("invalid input")
+	}
+
 	path, _ := m["path"].(string)
+	if path == "" {
+		if p, ok := m["file_path"].(string); ok {
+			path = p
+		} else if p, ok := m["filepath"].(string); ok {
+			path = p
+		} else if p, ok := m["file"].(string); ok {
+			path = p
+		}
+	}
+	if path == "" {
+		return "", fmt.Errorf("failed to write file: missing path argument")
+	}
+
 	content, _ := m["content"].(string)
+	if content == "" {
+		if c, ok := m["text"].(string); ok {
+			content = c
+		}
+	}
 
 	// Create directories if they don't exist
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create directories: %w", err)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create directories: %w", err)
+		}
 	}
 
 	err := os.WriteFile(path, []byte(content), 0644)

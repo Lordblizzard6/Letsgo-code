@@ -53,6 +53,17 @@ var OpenRouterModelMap = map[string]string{
 	"qwen-3":       "qwen/qwen3-235b-a22b",
 	"qwen-3-235b":  "qwen/qwen3-235b-a22b",
 
+	// Google via OpenRouter
+	"gemini":                "google/gemini-2.0-flash-001",
+	"gemini-flash":          "google/gemini-2.0-flash-001",
+	"gemini-2.0-flash":      "google/gemini-2.0-flash-001",
+	"gemini-2.0":            "google/gemini-2.0-flash-001",
+	"gemini-pro":            "google/gemini-2.5-pro-exp",
+	"gemini-1.5-pro":        "google/gemini-pro-1.5",
+	"gemini-1.5-flash":      "google/gemini-flash-1.5",
+	"gemini-flash-free":     "google/gemini-2.0-flash-lite-preview-02-05:free",
+	"gemini-2.0-flash-free": "google/gemini-2.0-flash-lite-preview-02-05:free",
+
 	// Nous
 	"hermes":   "nousresearch/hermes-3-llama-3.1-70b",
 	"hermes-3": "nousresearch/hermes-3-llama-3.1-70b",
@@ -95,6 +106,10 @@ var OpenRouterModelCatalog = []OpenRouterModel{
 	{ID: "mistralai/mistral-small", Name: "Mistral Small", Provider: "Mistral", Description: "Rápido", Context: 32000},
 	{ID: "deepseek/deepseek-chat-v3", Name: "DeepSeek V3", Provider: "DeepSeek", Description: "Chat avanzado", Context: 64000},
 	{ID: "deepseek/deepseek-r1", Name: "DeepSeek R1", Provider: "DeepSeek", Description: "Razonamiento", Context: 64000},
+	{ID: "google/gemini-2.0-flash-001", Name: "Gemini 2.0 Flash", Provider: "Google", Description: "Rápido, multimodal y sin geobloqueo vía OpenRouter", Context: 1000000},
+	{ID: "google/gemini-2.0-flash-lite-preview-02-05:free", Name: "Gemini 2.0 Flash Lite (Free)", Provider: "Google", Description: "Gratis en OpenRouter", Context: 1000000},
+	{ID: "google/gemini-2.5-pro-exp", Name: "Gemini 2.5 Pro Experimental", Provider: "Google", Description: "Máximo razonamiento de Google", Context: 1000000},
+	{ID: "google/gemini-flash-1.5", Name: "Gemini 1.5 Flash", Provider: "Google", Description: "Económico y 1M contexto", Context: 1000000},
 	{ID: "qwen/qwen3-235b-a22b", Name: "Qwen 3 235B", Provider: "Alibaba", Description: "MoE de alto rendimiento", Context: 128000},
 	{ID: "qwen/qwen-2.5-72b-instruct", Name: "Qwen 2.5 72B", Provider: "Alibaba", Description: "Fuerte rendimiento", Context: 128000},
 }

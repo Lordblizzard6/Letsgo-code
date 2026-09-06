@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
+import react from "@vitejs/plugin-react";
 import wails from "@wailsio/runtime/plugins/vite";
 
 /// <reference types="vitest/config" />
@@ -11,7 +11,7 @@ export default defineConfig({
     port: Number(process.env.WAILS_VITE_PORT) || 9245,
     strictPort: true,
   },
-  plugins: [svelte(), wails("./bindings")],
+  plugins: [react(), wails("./bindings")],
   resolve: {
     conditions: ["browser"],
   },
@@ -25,7 +25,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     server: {
       deps: {
-        inline: [/svelte/, /@testing-library/],
+        inline: [/@testing-library/],
       },
     },
   },

@@ -238,7 +238,8 @@ func TestStreamToEventsSequence(t *testing.T) {
 func TestToolCycleWithAutoApprove(t *testing.T) {
 	driver := &mockDriver{autoAppr: map[string]bool{"bash": true}}
 	e := newEngine(t, driver, streamScript{
-		toolUses: []api.ToolUse{{ID: "call_1", Name: "bash", Input: map[string]interface{}{"command": "echo hi"}}},
+		toolUses:     []api.ToolUse{{ID: "call_1", Name: "bash", Input: map[string]interface{}{"command": "echo hi"}}},
+		toolUsesOnce: true,
 	})
 	e.Start()
 	e.Send(SendMessage{Text: "run it"})

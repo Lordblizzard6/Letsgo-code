@@ -108,9 +108,30 @@ func InitDB() error {
 	return nil
 }
 
+func ensureSessionExistsLocked(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	var count int
+	_ = DB.QueryRow("SELECT COUNT(*) FROM sessions WHERE id = ?", sessionID).Scan(&count)
+	if count == 0 {
+		dateStr := time.Now().Format("2006-01-02")
+		cwd, _ := os.Getwd()
+		base := "Sesión"
+		if cwd != "" {
+			base = filepath.Base(cwd)
+		}
+		name := fmt.Sprintf("[%s] %s", dateStr, base)
+		_, _ = DB.Exec("INSERT INTO sessions (id, name, project_path, is_active) VALUES (?, ?, ?, 1)", sessionID, name, cwd)
+	} else {
+		_, _ = DB.Exec("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", sessionID)
+	}
+}
+
 func SaveMessage(sessionID, role string, content interface{}) error {
 	dbMu.Lock()
 	defer dbMu.Unlock()
+	ensureSessionExistsLocked(sessionID)
 	contentJSON, err := json.Marshal(content)
 	if err != nil {
 		return fmt.Errorf("failed to marshal content: %w", err)
@@ -191,12 +212,41 @@ func GetMessages(sessionID string, limit, offset int) ([]Message, error) {
 	return messages, nil
 }
 
-// PruneContext keeps only the last N messages to avoid token overflow
+// PruneContext keeps the initial instruction and the last N messages while preserving tool call integrity.
 func PruneContext(messages []api.Message, maxMessages int) []api.Message {
+	if maxMessages <= 0 {
+		maxMessages = 40
+	}
 	if len(messages) <= maxMessages {
 		return messages
 	}
-	return messages[len(messages)-maxMessages:]
+
+	// Always retain the first user message (primary prompt/instructions)
+	first := messages[0]
+	tailStart := len(messages) - maxMessages + 1
+	if tailStart < 1 {
+		tailStart = 1
+	}
+
+	// Check boundary: If tail starts with a user message that has tool_result,
+	// ensure the preceding assistant message with the matching tool_use is included.
+	if tailStart > 1 {
+		msg := messages[tailStart]
+		if blocks, ok := msg.Content.([]api.ContentBlock); ok {
+			for _, b := range blocks {
+				if b.Type == "tool_result" {
+					tailStart--
+					break
+				}
+			}
+		}
+	}
+
+	tail := messages[tailStart:]
+	out := make([]api.Message, 0, len(tail)+1)
+	out = append(out, first)
+	out = append(out, tail...)
+	return out
 }
 
 // Session Management
@@ -257,6 +307,26 @@ func ResumeSession(sessionID string) error {
 func UpdateSessionTimestamp(sessionID string) error {
 	_, err := DB.Exec("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", sessionID)
 	return err
+}
+
+// ListProjectPaths returns all unique non-empty project paths registered in sessions.
+func ListProjectPaths() ([]string, error) {
+	dbMu.RLock()
+	defer dbMu.RUnlock()
+	rows, err := DB.Query("SELECT DISTINCT project_path FROM sessions WHERE project_path IS NOT NULL AND project_path != '' ORDER BY project_path ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err == nil && p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths, nil
 }
 
 // Context Files Management
@@ -483,6 +553,12 @@ func RenameSession(sessionID, newName string) error {
 	return err
 }
 
+// SetSessionProjectPath updates the project path of a session
+func SetSessionProjectPath(sessionID, projectPath string) error {
+	_, err := DB.Exec("UPDATE sessions SET project_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", projectPath, sessionID)
+	return err
+}
+
 // DeleteSession removes a session and all its data
 func DeleteSession(sessionID string) error {
 	// Delete messages first
@@ -515,6 +591,58 @@ func DeleteMessage(messageID int64) error {
 func ClearSessionHistory(sessionID string) error {
 	_, err := DB.Exec("DELETE FROM messages WHERE session_id = ?", sessionID)
 	return err
+}
+
+// RollbackSession prunes all messages in the session starting from targetMessageID (inclusive).
+// If targetMessageID <= 0, it targets the most recent user message.
+// Returns the text content of the reverted prompt.
+func RollbackSession(sessionID string, targetMessageID int64) (string, error) {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+
+	var id int64 = targetMessageID
+	var content string
+
+	if id <= 0 {
+		err := DB.QueryRow(
+			"SELECT id, content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1",
+			sessionID,
+		).Scan(&id, &content)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		_ = DB.QueryRow("SELECT content FROM messages WHERE id = ? AND session_id = ?", id, sessionID).Scan(&content)
+	}
+
+	if id > 0 {
+		_, err := DB.Exec("DELETE FROM messages WHERE session_id = ? AND id >= ?", sessionID, id)
+		if err != nil {
+			return "", err
+		}
+		_, _ = DB.Exec("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", sessionID)
+	}
+
+	var unmarshaled interface{}
+	if err := json.Unmarshal([]byte(content), &unmarshaled); err == nil {
+		switch val := unmarshaled.(type) {
+		case string:
+			content = val
+		case []interface{}:
+			for _, block := range val {
+				if bMap, ok := block.(map[string]interface{}); ok {
+					if bMap["type"] == "text" {
+						if text, ok := bMap["text"].(string); ok {
+							content = text
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return content, nil
 }
 
 // SetActiveSession is an alias for ResumeSession for API compatibility
@@ -589,6 +717,7 @@ func IsGranted(sessionID, category string) (bool, error) {
 func SaveMessageKind(sessionID, role, content string, kind string) error {
 	dbMu.Lock()
 	defer dbMu.Unlock()
+	ensureSessionExistsLocked(sessionID)
 	_, err := DB.Exec(
 		`INSERT INTO messages (session_id, role, content, kind) VALUES (?, ?, ?, ?)`,
 		sessionID, role, content, kind)

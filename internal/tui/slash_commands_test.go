@@ -76,6 +76,7 @@ func TestSlashCommandsAndSuggestions(t *testing.T) {
 		{"/cost", "cost"},
 		{"/tokens", "Token"},
 		{"/clear", "limpiada"},
+		{"/rollback", "revertido"},
 		{"/quit", "Goodbye"},
 	}
 	for _, c := range cases {

@@ -1,6 +1,9 @@
 package services
 
-import "github.com/user/go-claude-code/internal/config"
+import (
+	"github.com/user/go-claude-code/internal/api"
+	"github.com/user/go-claude-code/internal/config"
+)
 
 // SettingsService exposes GetConfig/SaveConfig of the core contract §3
 // (T049). It is the Wails binding of the config surface already consumed by
@@ -33,4 +36,14 @@ func (s *SettingsService) SaveConfig(partial map[string]any) (config.Config, err
 	}
 	s.hub.emit("config:changed", map[string]any{"config": config.AppConfig})
 	return config.AppConfig, nil
+}
+
+// DiscoverModels queries models dynamically for the requested provider.
+func (s *SettingsService) DiscoverModels(provider string) ([]api.DiscoveredModel, error) {
+	apiKey := config.GetAPIKeyForProvider(provider)
+	baseURL := config.AppConfig.BaseURL
+	if provider == "ollama" && config.AppConfig.OllamaBaseURL != "" {
+		baseURL = config.AppConfig.OllamaBaseURL
+	}
+	return api.DiscoverModels(provider, apiKey, baseURL)
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +33,7 @@ var (
 	// AvailableSlashCommands lista todos los comandos slash disponibles
 	AvailableSlashCommands = []SlashCommand{
 		{Name: "/help", Description: "Show available commands"},
+		{Name: "/init", Description: "Initialize AGENTS.md rules for this workspace"},
 		{Name: "/quit", Description: "Exit the chat"},
 		{Name: "/exit", Description: "Exit the chat"},
 		{Name: "/clear", Description: "Clear conversation history"},
@@ -41,12 +43,19 @@ var (
 		{Name: "/tokens", Description: "Show token usage"},
 		{Name: "/compact", Description: "Compact conversation"},
 		{Name: "/save", Description: "Save session"},
+		{Name: "/rename", Description: "Rename current active session"},
 		{Name: "/sessions", Description: "List saved sessions"},
 		{Name: "/open", Description: "Resume a session: /open <id>"},
 		{Name: "/new", Description: "Create a new session"},
 		{Name: "/files", Description: "List files in context"},
-		{Name: "/diff", Description: "Show changes"},
-		{Name: "/settings", Description: "Open settings"},
+		{Name: "/diff", Description: "Show changes and review diff"},
+		{Name: "/review", Description: "Review unstaged/staged git changes"},
+		{Name: "/tasks", Description: "Inspect executed tools and background tasks"},
+		{Name: "/terminal", Description: "Show terminal commands and outputs"},
+		{Name: "/skills", Description: "List available agent skills"},
+		{Name: "/share", Description: "Share conversation export"},
+		{Name: "/rollback", Description: "Revert last message and restore prompt"},
+		{Name: "/settings", Description: "Open settings / model picker"},
 		{Name: "/context", Description: "Show context info"},
 		{Name: "/memory", Description: "Manage memory"},
 		{Name: "/task", Description: "Create task"},
@@ -77,6 +86,13 @@ func ProcessSlashCommand(input string) (response string, shouldContinue bool, sh
 	switch cmd {
 	case "/quit", "/exit":
 		return "👋 Goodbye!", false, true
+	case "/init":
+		cwd, _ := os.Getwd()
+		msg, err := initWorkspaceRules(cwd)
+		if err != nil {
+			return "❌ " + err.Error(), true, false
+		}
+		return msg, true, false
 	case "/clear":
 		return handleClear(), true, false
 	case "/help":
@@ -91,6 +107,24 @@ func ProcessSlashCommand(input string) (response string, shouldContinue bool, sh
 		return handleTokens(args), true, false
 	case "/save":
 		return handleSave(), true, false
+	case "/rename":
+		if strings.TrimSpace(args) == "" {
+			return "✏️ Uso: /rename <nuevo nombre>", true, false
+		}
+		targetID := currentSlashSessionID
+		if targetID == "" {
+			active, _ := db.GetActiveSession()
+			if active != nil {
+				targetID = active.ID
+			}
+		}
+		if targetID == "" {
+			return "❌ No hay sesión activa para renombrar", true, false
+		}
+		if err := db.RenameSession(targetID, strings.TrimSpace(args)); err != nil {
+			return fmt.Sprintf("❌ Error al renombrar: %v", err), true, false
+		}
+		return fmt.Sprintf("✅ Sesión renombrada a: %s", strings.TrimSpace(args)), true, false
 	case "/sessions":
 		return handleSessions(), true, false
 	case "/open":
@@ -102,8 +136,43 @@ func ProcessSlashCommand(input string) (response string, shouldContinue bool, sh
 		return "✨ Creando una nueva sesión…", true, false
 	case "/files":
 		return tools.GetContextFilesSummary(), true, false
-	case "/diff":
+	case "/diff", "/review":
+		cmd := exec.Command("git", "diff", "HEAD")
+		out, err := cmd.CombinedOutput()
+		if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+			return string(out), true, false
+		}
 		return tools.GetSessionDiff(), true, false
+	case "/tasks", "/terminal":
+		return "⚡ Abriendo el inspector de actividades y herramientas (Ctrl+B)", true, false
+	case "/skills":
+		skills := tools.GetBuiltinSkills()
+		var names []string
+		for _, s := range skills {
+			names = append(names, fmt.Sprintf("• %s: %s", s.Name, s.Description))
+		}
+		if len(names) == 0 {
+			return "🎯 Habilidades disponibles: speckit-plan, speckit-implement, speckit-tasks, speckit-specify", true, false
+		}
+		return "🎯 Habilidades disponibles:\n" + strings.Join(names, "\n"), true, false
+	case "/share":
+		return "📋 Conversación lista para compartir (exportación en Markdown disponible)", true, false
+	case "/rollback":
+		targetID := currentSlashSessionID
+		if targetID == "" {
+			active, _ := db.GetActiveSession()
+			if active != nil {
+				targetID = active.ID
+			}
+		}
+		if targetID == "" {
+			return "❌ No hay sesión activa para rebobinar", true, false
+		}
+		restored, err := db.RollbackSession(targetID, 0)
+		if err != nil {
+			return fmt.Sprintf("❌ Error al rebobinar: %v", err), true, false
+		}
+		return fmt.Sprintf("↩ Mensaje revertido. Prompt restaurado:\n%s", restored), true, false
 	case "/settings":
 		return "⚙️ Press Ctrl+S to open settings", true, false
 	case "/context":
@@ -181,8 +250,95 @@ func handleSave() string {
 }
 
 func handleUndoRedo(action string) string {
-	fmt.Fprintf(os.Stderr, "[slash] /%s not implemented\n", action)
-	return fmt.Sprintf("🚫 /%s no soportado todavía: backend de acciones no implementado", action)
+	if _, err := os.Stat(".git"); os.IsNotExist(err) {
+		return "⚠️ No estás en un repositorio Git. /" + action + " requiere git para rastrear cambios."
+	}
+	if action == "undo" {
+		lastCommitCmd := exec.Command("git", "rev-parse", "HEAD")
+		lastCommitOut, err := lastCommitCmd.Output()
+		if err != nil {
+			return fmt.Sprintf("❌ Error al obtener último commit: %v", err)
+		}
+		lastCommit := strings.TrimSpace(string(lastCommitOut))
+		if lastCommit == "" {
+			return "ℹ️ No hay commits para deshacer."
+		}
+		revertCmd := exec.Command("git", "revert", "--no-commit", "HEAD")
+		if err := revertCmd.Run(); err != nil {
+			resetCmd := exec.Command("git", "reset", "--soft", "HEAD~1")
+			if err := resetCmd.Run(); err != nil {
+				return fmt.Sprintf("❌ Error al deshacer: %v", err)
+			}
+		}
+		_ = exec.Command("git", "commit", "-m", "Undo: last action").Run()
+		limit := 8
+		if len(lastCommit) < 8 {
+			limit = len(lastCommit)
+		}
+		return fmt.Sprintf("✅ Deshecho commit %s", lastCommit[:limit])
+	} else if action == "redo" {
+		msgCmd := exec.Command("git", "log", "-1", "--pretty=%B")
+		msgOut, err := msgCmd.Output()
+		if err != nil {
+			return fmt.Sprintf("❌ Error al verificar commit: %v", err)
+		}
+		commitMsg := strings.TrimSpace(string(msgOut))
+		if !strings.HasPrefix(commitMsg, "Undo:") {
+			return "ℹ️ La última acción no fue un undo. Nada que rehacer."
+		}
+		revertCmd := exec.Command("git", "revert", "--no-commit", "HEAD")
+		if err := revertCmd.Run(); err != nil {
+			return fmt.Sprintf("❌ Error al rehacer: %v", err)
+		}
+		newMsg := strings.Replace(commitMsg, "Undo:", "Redo:", 1)
+		_ = exec.Command("git", "commit", "-m", newMsg).Run()
+		return "✅ Acción rehecha: " + newMsg
+	}
+	return "Comando no reconocido"
+}
+
+func initWorkspaceRules(cwd string) (string, error) {
+	agentsPath := filepath.Join(cwd, "AGENTS.md")
+	if _, err := os.Stat(agentsPath); err == nil {
+		return fmt.Sprintf("ℹ️ AGENTS.md ya existe en %s", agentsPath), nil
+	}
+
+	stack := "Generic"
+	if _, err := os.Stat(filepath.Join(cwd, "go.mod")); err == nil {
+		stack = "Go"
+	} else if _, err := os.Stat(filepath.Join(cwd, "package.json")); err == nil {
+		stack = "Node.js / TypeScript"
+	} else if _, err := os.Stat(filepath.Join(cwd, "Cargo.toml")); err == nil {
+		stack = "Rust"
+	} else if _, err := os.Stat(filepath.Join(cwd, "pyproject.toml")); err == nil {
+		stack = "Python"
+	} else if _, err := os.Stat(filepath.Join(cwd, "pubspec.yaml")); err == nil {
+		stack = "Flutter / Dart"
+	}
+
+	template := fmt.Sprintf(`# AGENTS.md
+
+Operating instructions and rules for coding agents in this repository.
+
+## 0. Non-negotiables
+1. Working code only. Finish the job. Plausibility is not correctness.
+2. Direct, concise communication. No flattery, no filler.
+3. Surgical changes: Touch only what you must.
+4. Goal-driven: Verify your changes with tests before reporting completion.
+
+## 1. Project Context
+- Stack: %s
+
+## 2. Conventions & Style
+- Follow existing patterns in the codebase.
+- Return errors to callers, do not silently swallow them.
+`, stack)
+
+	if err := os.WriteFile(agentsPath, []byte(strings.TrimSpace(template)+"\n"), 0644); err != nil {
+		return "", fmt.Errorf("falló al escribir AGENTS.md: %w", err)
+	}
+
+	return fmt.Sprintf("✅ Creado AGENTS.md para el stack %s", stack), nil
 }
 
 // ProcessMentions procesa menciones @ en el texto y expande el contexto

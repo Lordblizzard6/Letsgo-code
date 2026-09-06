@@ -28,13 +28,15 @@ func (t *LsTool) Definition() api.Tool {
 }
 
 func (t *LsTool) Execute(input interface{}) (string, error) {
-	m, ok := input.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("invalid input: object expected")
-	}
-	path, ok := m["path"].(string)
-	if !ok {
-		return "", fmt.Errorf("invalid input: path string expected")
+	path := "."
+	if m, ok := input.(map[string]interface{}); ok && m != nil {
+		if p, ok := m["path"].(string); ok && strings.TrimSpace(p) != "" {
+			path = p
+		} else if p, ok := m["dir"].(string); ok && strings.TrimSpace(p) != "" {
+			path = p
+		} else if p, ok := m["directory"].(string); ok && strings.TrimSpace(p) != "" {
+			path = p
+		}
 	}
 
 	entries, err := os.ReadDir(path)

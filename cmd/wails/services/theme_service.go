@@ -14,10 +14,13 @@ func NewThemeService(hub *Hub) *ThemeService { return &ThemeService{hub: hub} }
 // Get returns the current variant: "dark" or "light".
 func (s *ThemeService) Get() string { return config.AppConfig.ThemeVariant }
 
-// Set persists the variant ("dark"/"light") and emits `theme:changed`.
+// Set persists the variant ("dark"/"light"/"letsgo") and emits `theme:changed`.
 func (s *ThemeService) Set(variant string) (string, error) {
-	if variant != "dark" && variant != "light" {
+	if variant != "dark" && variant != "light" && variant != "goulm" && variant != "lets-go" && variant != "letsgo" {
 		return config.AppConfig.ThemeVariant, errInvalidTheme
+	}
+	if variant == "goulm" || variant == "lets-go" {
+		variant = "letsgo"
 	}
 	config.AppConfig.ThemeVariant = variant
 	if err := config.SaveConfig(); err != nil {
@@ -27,7 +30,7 @@ func (s *ThemeService) Set(variant string) (string, error) {
 	return variant, nil
 }
 
-var errInvalidTheme = errorString("theme must be \"dark\" or \"light\"")
+var errInvalidTheme = errorString("theme must be \"letsgo\", \"dark\", or \"light\"")
 
 type errorString string
 

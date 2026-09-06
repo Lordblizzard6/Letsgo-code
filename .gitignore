@@ -76,3 +76,8 @@ cmd/wails/frontend/bindings/
 # Playwright (005, T085)
 cmd/wails/frontend/test-results/
 cmd/wails/frontend/playwright-report/
+
+# Scratch & reference
+hola.txt
+ejemplo de gui/
+node_modules/

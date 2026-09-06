@@ -34,18 +34,22 @@ var AutoApproveCategories = map[string]bool{
 	"web":       true,
 }
 
-// toolCategory maps a tool name to its approval category.
-func toolCategory(toolName string) string {
+// ToolCategory maps a tool name to its approval category.
+func ToolCategory(toolName string) string {
 	switch {
 	case toolName == "bash" || toolName == "powershell":
 		return "bash"
-	case toolName == "edit" || toolName == "write_file" || toolName == "notebook_edit":
+	case toolName == "edit" || toolName == "write_file" || toolName == "notebook_edit" || toolName == "apply_patch":
 		return "file-edit"
 	case toolName == "web_search" || toolName == "web_fetch" || toolName == "web_browser":
 		return "web"
 	default:
 		return "other"
 	}
+}
+
+func toolCategory(toolName string) string {
+	return ToolCategory(toolName)
 }
 
 // promptWithTimeout runs the driver's Prompt under the engine approval timeout.

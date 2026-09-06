@@ -575,3 +575,176 @@ func TestMCPServiceAddServer(t *testing.T) {
 		t.Fatal("duplicate server must be rejected")
 	}
 }
+
+// TestSessionsServiceProjectSynchronization tests that SetCurrentProject and Open
+// synchronize the process working directory and emit project:changed events.
+func TestSessionsServiceProjectSynchronization(t *testing.T) {
+	_ = db.InitDB()
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	tempDirA, err := os.MkdirTemp("", "project-a-*")
+	if err != nil {
+		t.Fatalf("mkdirtemp: %v", err)
+	}
+	defer os.RemoveAll(tempDirA)
+
+	tempDirB, err := os.MkdirTemp("", "project-b-*")
+	if err != nil {
+		t.Fatalf("mkdirtemp: %v", err)
+	}
+	defer os.RemoveAll(tempDirB)
+
+	hub := NewHub()
+	cap := &capture{}
+	hub.Emit = cap.add
+
+	svc := NewSessionsService(hub)
+
+	// Initially unscoped
+	if p := svc.GetCurrentProject(); p != "" {
+		t.Fatalf("expected empty initial project, got %q", p)
+	}
+
+	// SetCurrentProject to tempDirA
+	if err := svc.SetCurrentProject(tempDirA); err != nil {
+		t.Fatalf("SetCurrentProject A: %v", err)
+	}
+	if p := svc.GetCurrentProject(); !strings.EqualFold(filepath.Clean(p), filepath.Clean(tempDirA)) {
+		t.Fatalf("expected project A %q, got %q", tempDirA, p)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if !strings.EqualFold(filepath.Clean(wd), filepath.Clean(tempDirA)) {
+		t.Fatalf("expected os.Getwd to be %q, got %q", tempDirA, wd)
+	}
+
+	// Create session with project B
+	sessB, err := svc.Create("Session B", tempDirB)
+	if err != nil {
+		t.Fatalf("create session B: %v", err)
+	}
+	wdB, _ := os.Getwd()
+	if !strings.EqualFold(filepath.Clean(wdB), filepath.Clean(tempDirB)) {
+		t.Fatalf("expected os.Getwd to be %q after Create, got %q", tempDirB, wdB)
+	}
+
+	// Switch back to project A explicitly
+	if err := svc.SetCurrentProject(tempDirA); err != nil {
+		t.Fatalf("SetCurrentProject A: %v", err)
+	}
+
+	// Open session B: must switch working directory to tempDirB
+	if _, err := svc.Open(sessB.ID); err != nil {
+		t.Fatalf("open session B: %v", err)
+	}
+	wdAfterOpen, _ := os.Getwd()
+	if !strings.EqualFold(filepath.Clean(wdAfterOpen), filepath.Clean(tempDirB)) {
+		t.Fatalf("expected os.Getwd to be %q after Open, got %q", tempDirB, wdAfterOpen)
+	}
+}
+
+// TestGitService_StagingAndNumstat tests git diff numstat parsing, file staging/unstaging, and commit counting.
+func TestGitService_StagingAndNumstat(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "git-test-*")
+	if err != nil {
+		t.Fatalf("mkdirtemp: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	if _, err := runGit(tempDir, "init"); err != nil {
+		t.Skipf("git not available or init failed: %v", err)
+	}
+	_, _ = runGit(tempDir, "config", "user.name", "Test User")
+	_, _ = runGit(tempDir, "config", "user.email", "test@example.com")
+
+	// Commit 1: initial file
+	f1 := filepath.Join(tempDir, "file1.txt")
+	if err := os.WriteFile(f1, []byte("hello\nworld\n"), 0o644); err != nil {
+		t.Fatalf("write file1: %v", err)
+	}
+	_, _ = runGit(tempDir, "add", "file1.txt")
+	if _, err := runGit(tempDir, "commit", "-m", "initial commit"); err != nil {
+		t.Skipf("git commit failed: %v", err)
+	}
+
+	svc := NewGitService(nil)
+	svc.SetDir(tempDir)
+
+	// Initially clean
+	summary := svc.DiffSummary()
+	if summary.CommittedCount < 1 {
+		t.Errorf("expected CommittedCount >= 1, got %d", summary.CommittedCount)
+	}
+	if len(summary.Files) != 0 {
+		t.Errorf("expected 0 changed files initially, got %d", len(summary.Files))
+	}
+
+	// Modify file1.txt and add file2.txt in a subfolder
+	subDir := filepath.Join(tempDir, "sub")
+	_ = os.MkdirAll(subDir, 0o755)
+	f2 := filepath.Join(subDir, "file2.txt")
+	if err := os.WriteFile(f2, []byte("line1\nline2\nline3\n"), 0o644); err != nil {
+		t.Fatalf("write file2: %v", err)
+	}
+	if err := os.WriteFile(f1, []byte("hello\nworld\nnew line\n"), 0o644); err != nil {
+		t.Fatalf("modify file1: %v", err)
+	}
+
+	// Verify DiffSummary sees unstaged changes
+	summary = svc.DiffSummary()
+	if len(summary.Files) == 0 {
+		t.Fatal("expected changed files, got 0")
+	}
+
+	// Stage sub/file2.txt
+	if _, err := svc.StageFile(filepath.Join("sub", "file2.txt")); err != nil {
+		t.Fatalf("StageFile failed: %v", err)
+	}
+
+	summary = svc.DiffSummary()
+	var stagedFound bool
+	for _, f := range summary.Files {
+		if f.Name == "file2.txt" && f.Staged {
+			stagedFound = true
+			if f.Additions != 3 {
+				t.Errorf("expected 3 additions for file2.txt, got %d", f.Additions)
+			}
+		}
+	}
+	if !stagedFound {
+		t.Errorf("expected file2.txt to be marked staged in summary")
+	}
+
+	// Unstage sub/file2.txt
+	if _, err := svc.UnstageFile(filepath.Join("sub", "file2.txt")); err != nil {
+		t.Fatalf("UnstageFile failed: %v", err)
+	}
+
+	// StageAll
+	if _, err := svc.StageAll(); err != nil {
+		t.Fatalf("StageAll failed: %v", err)
+	}
+	summary = svc.DiffSummary()
+	for _, f := range summary.Files {
+		if !f.Staged {
+			t.Errorf("expected file %s to be staged after StageAll", f.Path)
+		}
+	}
+
+	// UnstageAll
+	if _, err := svc.UnstageAll(); err != nil {
+		t.Fatalf("UnstageAll failed: %v", err)
+	}
+	summary = svc.DiffSummary()
+	for _, f := range summary.Files {
+		if f.Staged {
+			t.Errorf("expected file %s to not be staged after UnstageAll", f.Path)
+		}
+	}
+}

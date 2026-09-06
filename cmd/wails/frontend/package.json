@@ -8,7 +8,7 @@
     "build:dev": "vite build --minify false --mode development",
     "build": "vite build --mode production",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "tsc --noEmit",
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
@@ -20,7 +20,13 @@
   "dependencies": {
     "@wailsio/runtime": "latest",
     "dompurify": "^3.4.13",
-    "streaming-markdown": "^0.2.15"
+    "highlight.js": "^11.12.0",
+    "streaming-markdown": "^0.2.15",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
@@ -28,6 +34,10 @@
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/svelte": "^5.2.0",
     "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
     "jsdom": "^26.0.0",
     "svelte": "^5.46.4",
     "svelte-check": "^4.4.8",
