@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,7 +13,6 @@ import (
 func init() {
 	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(commitCmd)
-	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(reviewCmd)
 }
 
@@ -106,55 +104,6 @@ If no message is provided, Claude will suggest a commit message based on the cha
 		}
 
 		fmt.Println("\n✓ Changes committed successfully.")
-	},
-}
-
-var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize a new project with Claude Code",
-	Long: `Initialize the current directory for use with Claude Code.
-This sets up project configuration and optionally initializes a git repository.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		cwd, _ := os.Getwd()
-		fmt.Printf("Initializing Claude Code in %s\n\n", cwd)
-
-		// Check for existing files
-		entries, err := os.ReadDir(cwd)
-		if err != nil {
-			fmt.Printf("Error reading directory: %v\n", err)
-			return
-		}
-
-		if len(entries) == 0 {
-			fmt.Println("Empty directory detected.")
-			fmt.Println("What type of project would you like to create?")
-			fmt.Println("  1. Go project")
-			fmt.Println("  2. Node.js/TypeScript project")
-			fmt.Println("  3. Python project")
-			fmt.Println("  4. Rust project")
-			fmt.Println("  5. Just initialize Claude Code (no project files)")
-			return
-		}
-
-		// Check for git
-		if _, err := os.Stat(filepath.Join(cwd, ".git")); os.IsNotExist(err) {
-			fmt.Println("Would you like to initialize a git repository? (y/n): ")
-			// In interactive mode, would ask user
-		}
-
-		// Create session
-		sessionID, err := db.CreateSession(filepath.Base(cwd), cwd)
-		if err != nil {
-			fmt.Printf("Error creating session: %v\n", err)
-			return
-		}
-
-		fmt.Printf("\n✓ Claude Code initialized!\n")
-		fmt.Printf("Session ID: %s\n", sessionID[:8])
-		fmt.Println("\nYou can now:")
-		fmt.Println("  - Start chatting: claudego chat")
-		fmt.Println("  - Add files to context: claudego add [files...]")
-		fmt.Println("  - List sessions: claudego session list")
 	},
 }
 

@@ -253,6 +253,31 @@ type DailyStat struct {
 	Cost     float64 `json:"cost"`
 }
 
+// UsageToday is the KPI payload of frontend-contract.md §3 GetUsageToday():
+// cost, requests and tokens consumed during the current calendar day. It feeds
+// the Uso panels of the TUI and the Wails GUI (contract §2 usage:update).
+type UsageToday struct {
+	CostUSD  float64 `json:"cost_usd"`
+	Requests int     `json:"requests"`
+	Tokens   int     `json:"tokens"`
+}
+
+// GetUsageToday aggregates usage of sessions started today
+// (frontend-contract.md §3 `GetUsageToday()`).
+func (a *Analytics) GetUsageToday() UsageToday {
+	today := time.Now().Format("2006-01-02")
+	u := UsageToday{}
+	for _, session := range a.sessions {
+		if session.StartTime.Format("2006-01-02") != today {
+			continue
+		}
+		u.CostUSD += session.Cost
+		u.Requests += session.MessagesSent
+		u.Tokens += session.TokensUsed
+	}
+	return u
+}
+
 // generateSessionID generates a unique session ID
 func generateSessionID() string {
 	return fmt.Sprintf("sess_%d", time.Now().UnixNano())

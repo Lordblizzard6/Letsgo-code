@@ -66,3 +66,18 @@ temp/
 # Coverage reports
 coverage.html
 coverage.txt
+
+# Wails GUI (005)
+cmd/wails/frontend/node_modules/
+cmd/wails/frontend/dist/
+cmd/wails/frontend/.vite/
+cmd/wails/frontend/bindings/
+
+# Playwright (005, T085)
+cmd/wails/frontend/test-results/
+cmd/wails/frontend/playwright-report/
+
+# Scratch & reference
+hola.txt
+ejemplo de gui/
+node_modules/

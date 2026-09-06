@@ -4,13 +4,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 )
 
 func GetSystemPrompt(model string, cwd string) string {
-	return fmt.Sprintf(`%s
+	return GetBuildSystemPrompt(model, cwd)
+}
+
+// GetBuildSystemPrompt returns the system prompt for the Build Agent (code implementation).
+func GetBuildSystemPrompt(model string, cwd string) string {
+	basePrompt := fmt.Sprintf(`%s
 
 %s
 
@@ -39,6 +45,59 @@ func GetSystemPrompt(model string, cwd string) string {
 		getAgentModeSection(),
 		getProgrammingGuidelinesSection(),
 		getEnvironmentSection(model, cwd))
+
+	if rules := getProjectRulesSection(cwd); rules != "" {
+		basePrompt += rules
+	}
+	return basePrompt
+}
+
+// GetPlanSystemPrompt returns the system prompt for the Plan Agent (read-only architectural analysis).
+func GetPlanSystemPrompt(model string, cwd string) string {
+	basePrompt := fmt.Sprintf(`You are LetsGO Code in PLAN MODE, an expert software architect and technical planner.
+
+# Core Mission in Plan Mode
+- Your role is ONLY to explore, research, analyze, and produce actionable, structured plans.
+- You are in READ-ONLY mode. You CANNOT and MUST NOT modify any files or execute destructive commands.
+- Use inspection tools (ls, cat, glob, grep, lsp, web_search, web_fetch) to understand the codebase and dependencies.
+- Output clean, numbered implementation plans with:
+  1. Architectural diagnosis and approach.
+  2. Exact files to create or modify.
+  3. Step-by-step implementation sequence.
+  4. Precise verification checks (tests, commands, edge cases).
+- Once the user reviews and approves your plan, execution will proceed in BUILD mode.
+
+# Rules
+- Do NOT propose speculative changes. Always inspect the relevant files before proposing modifications.
+- Prioritize minimal changes, simplicity, and surgical edits.
+- Direct, clear communication: no filler, no pleasantries.
+
+%s`, getEnvironmentSection(model, cwd))
+
+	if rules := getProjectRulesSection(cwd); rules != "" {
+		basePrompt += rules
+	}
+	return basePrompt
+}
+
+// getProjectRulesSection reads AGENTS.md, CLAUDE.md, .cursorrules or .rules in the workspace
+func getProjectRulesSection(cwd string) string {
+	ruleFiles := []string{"AGENTS.md", "CLAUDE.md", ".cursorrules", ".rules"}
+	for _, f := range ruleFiles {
+		p := f
+		if cwd != "" {
+			p = filepath.Join(cwd, f)
+		}
+		data, err := os.ReadFile(p)
+		if err == nil && len(strings.TrimSpace(string(data))) > 0 {
+			content := string(data)
+			if len(content) > 30000 {
+				content = content[:30000] + "\n... [truncated rules]"
+			}
+			return fmt.Sprintf("\n\n# Project Instructions & Conventions (from %s)\n%s", f, content)
+		}
+	}
+	return ""
 }
 
 func getIntroSection() string {

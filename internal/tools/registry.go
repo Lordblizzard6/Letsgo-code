@@ -13,6 +13,7 @@ var AllTools = []Tool{
 	&GlobTool{},
 	&GrepTool{},
 	&EditTool{},
+	&ApplyPatchTool{},
 	&WriteFileTool{},
 	&NotebookEditTool{},
 
@@ -83,6 +84,22 @@ func GetToolDefinitions() []api.Tool {
 	defs := make([]api.Tool, len(AllTools))
 	for i, t := range AllTools {
 		defs[i] = t.Definition()
+	}
+	return defs
+}
+
+// GetPlanToolDefinitions returns only read-only/inspection tools allowed during Plan mode.
+func GetPlanToolDefinitions() []api.Tool {
+	var defs []api.Tool
+	for _, t := range AllTools {
+		name := t.Definition().Name
+		switch name {
+		case "ls", "cat", "glob", "grep", "lsp", "web_search", "web_fetch",
+			"brief", "ask_user", "sleep", "tool_search",
+			"list_mcp_resources", "read_mcp_resource",
+			"plan_show", "plan_step_add", "plan_step_complete", "plan_approve":
+			defs = append(defs, t.Definition())
+		}
 	}
 	return defs
 }

@@ -33,6 +33,39 @@ letsgo login
 letsgo chat
 ```
 
+## 🖥️ Desktop GUI (Wails)
+
+The GUI provides a 1:1 surface for the CLI capabilities: chat, sessions, agent
+mode with approvals, git/MCP/plugins views, settings parity and usage tracking.
+It runs inside the same `letsgo` executable — no separate Wails binary.
+
+```bash
+# Run the desktop GUI
+letsgo gui
+```
+
+**WebView2:** the GUI renders via the Microsoft WebView2 runtime. It is embedded
+in production builds (`wails3 build -webview2 embed`); otherwise it must be
+installed on the system.
+
+**Shortcuts (keyboard-only, SC-009):**
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+L` | Focus the message input |
+| `Ctrl+N` | New session |
+| `Ctrl+1..9` | Switch to the Nth session |
+| `Ctrl+,` | Open Settings |
+| `Ctrl+U` | Open Usage |
+| `Ctrl+Shift+A` | Toggle auto-approve |
+| `Enter` / `Esc` | Approve / reject a tool call |
+
+**First launch:** without a configured provider the app opens directly into
+Settings; save an API key to enable chat. API keys are stored in
+`~/.letsGo/config.yaml` (owner-only permissions) and masked in the UI.
+
+*Screenshot placeholder: `docs/screenshots/gui.png`*
+
 ## 📋 Requirements
 
 - Go 1.21+ (for building from source)

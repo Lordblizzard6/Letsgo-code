@@ -7,17 +7,26 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/user/go-claude-code/internal/config"
+	"github.com/user/go-claude-code/internal/tui"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "letsgo",
-	Short: "LetsGO Code - A fast Go implementation of Claude Code CLI",
-	Long:  "LetsGO Code - A faster, native AI coding assistant built with Go.",
+	Use:   "letsgo [prompt]",
+	Short: "LetsGO Code - An open, fast AI coding assistant built with Go",
+	Long:  "LetsGO Code - An AI coding assistant harness built with Go, TUI (BubbleTea), and GUI (Wails).",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return config.LoadConfig()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		printHeader()
+		if len(args) > 0 {
+			runCmd.Run(cmd, args)
+			return
+		}
+		printChatHeader()
+		if err := tui.RunChat(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error starting chat: %v\n", err)
+			os.Exit(1)
+		}
 	},
 }
 

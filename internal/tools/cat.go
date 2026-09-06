@@ -32,8 +32,17 @@ func (t *CatTool) Execute(input interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("invalid input: object expected")
 	}
-	path, ok := m["path"].(string)
-	if !ok {
+	path, _ := m["path"].(string)
+	if path == "" {
+		if p, ok := m["file_path"].(string); ok {
+			path = p
+		} else if p, ok := m["filepath"].(string); ok {
+			path = p
+		} else if p, ok := m["file"].(string); ok {
+			path = p
+		}
+	}
+	if path == "" {
 		return "", fmt.Errorf("invalid input: path string expected")
 	}
 

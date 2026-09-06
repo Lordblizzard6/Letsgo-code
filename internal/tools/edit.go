@@ -40,8 +40,17 @@ func (t *EditTool) Execute(input interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("invalid input: object expected")
 	}
-	path, ok := m["path"].(string)
-	if !ok {
+	path, _ := m["path"].(string)
+	if path == "" {
+		if p, ok := m["file_path"].(string); ok {
+			path = p
+		} else if p, ok := m["filepath"].(string); ok {
+			path = p
+		} else if p, ok := m["file"].(string); ok {
+			path = p
+		}
+	}
+	if path == "" {
 		return "", fmt.Errorf("invalid input: path string expected")
 	}
 	oldStr, ok := m["old_string"].(string)
@@ -61,6 +70,24 @@ func (t *EditTool) Execute(input interface{}) (string, error) {
 	fullText := string(content)
 	count := strings.Count(fullText, oldStr)
 	if count == 0 {
+		// Fallback: tolerar diferencias de salto de línea (\r\n vs \n)
+		normalizedFull := strings.ReplaceAll(fullText, "\r\n", "\n")
+		normalizedOld := strings.ReplaceAll(oldStr, "\r\n", "\n")
+		normalizedNew := strings.ReplaceAll(newStr, "\r\n", "\n")
+		countNorm := strings.Count(normalizedFull, normalizedOld)
+		if countNorm == 1 {
+			hasCRLF := strings.Contains(fullText, "\r\n")
+			replaced := strings.Replace(normalizedFull, normalizedOld, normalizedNew, 1)
+			if hasCRLF {
+				replaced = strings.ReplaceAll(replaced, "\n", "\r\n")
+			}
+			if err := os.WriteFile(path, []byte(replaced), 0644); err != nil {
+				return "", fmt.Errorf("failed to write file: %w", err)
+			}
+			return fmt.Sprintf("Successfully edited %s", path), nil
+		} else if countNorm > 1 {
+			return "", fmt.Errorf("old_string is ambiguous (%d occurrences found). Please provide more context.", countNorm)
+		}
 		return "", fmt.Errorf("old_string not found in file")
 	}
 	if count > 1 {

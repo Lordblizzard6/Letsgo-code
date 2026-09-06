@@ -122,9 +122,20 @@ func (c *Client) streamRequestInternal(ctx context.Context, req Request, onDelta
 	var finalReq interface{}
 
 	if !strings.Contains(c.BaseURL, "anthropic.com") {
+		type OaiFunctionCall struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		}
+		type OaiToolCall struct {
+			ID       string          `json:"id"`
+			Type     string          `json:"type"`
+			Function OaiFunctionCall `json:"function"`
+		}
 		type OaiMessage struct {
-			Role    string      `json:"role"`
-			Content interface{} `json:"content"`
+			Role       string        `json:"role"`
+			Content    interface{}   `json:"content"`
+			ToolCallID string        `json:"tool_call_id,omitempty"`
+			ToolCalls  []OaiToolCall `json:"tool_calls,omitempty"`
 		}
 		type OaiRequest struct {
 			Model     string       `json:"model"`
@@ -140,55 +151,53 @@ func (c *Client) streamRequestInternal(ctx context.Context, req Request, onDelta
 		}
 		for _, m := range req.Messages {
 			role := m.Role
-			var content interface{}
-
 			switch c := m.Content.(type) {
 			case string:
-				content = c
+				oaiMessages = append(oaiMessages, OaiMessage{Role: role, Content: c})
 			case []ContentBlock:
-				// OpenAI uses a different structure for tool calls/results
-				// For simple text, we can still use a string or array of parts
 				text := ""
-				var toolCalls []interface{}
+				var toolCalls []OaiToolCall
 				for _, block := range c {
 					if block.Type == "text" {
 						text += block.Text
 					} else if block.Type == "tool_use" && block.ToolUse != nil {
-						// In OAI, tool calls are a separate field in the assistant message
-						// but here we are simplifying to match the OAI API expectations
-						// for history when it's already a ToolCall object.
-						argsMap := make(map[string]interface{})
-						if argsStr, ok := block.ToolUse.Input.(string); ok {
-							json.Unmarshal([]byte(argsStr), &argsMap)
+						argsStr := ""
+						switch in := block.ToolUse.Input.(type) {
+						case string:
+							argsStr = in
+						default:
+							b, _ := json.Marshal(in)
+							argsStr = string(b)
 						}
-						toolCalls = append(toolCalls, map[string]interface{}{
-							"id":   block.ToolUse.ID,
-							"type": "function",
-							"function": map[string]interface{}{
-								"name":      block.ToolUse.Name,
-								"arguments": block.ToolUse.Input,
+						toolCalls = append(toolCalls, OaiToolCall{
+							ID:   block.ToolUse.ID,
+							Type: "function",
+							Function: OaiFunctionCall{
+								Name:      block.ToolUse.Name,
+								Arguments: argsStr,
 							},
 						})
 					} else if block.Type == "tool_result" && block.ToolResult != nil {
-						// Tool results in OAI are separate messages with role "tool"
 						oaiMessages = append(oaiMessages, OaiMessage{
-							Role:    "tool",
-							Content: block.ToolResult.Content,
+							Role:       "tool",
+							ToolCallID: block.ToolResult.ToolUseID,
+							Content:    block.ToolResult.Content,
 						})
-						// Since OAI requires a tool_call_id, we'd need to handle that.
-						// This is a simplification.
-						continue
 					}
 				}
-				if text != "" {
-					content = text
+				if text != "" || len(toolCalls) > 0 {
+					var content interface{} = text
+					if text == "" && len(toolCalls) > 0 {
+						content = nil
+					}
+					oaiMessages = append(oaiMessages, OaiMessage{
+						Role:      role,
+						Content:   content,
+						ToolCalls: toolCalls,
+					})
 				}
 			default:
-				content = fmt.Sprintf("%v", m.Content)
-			}
-
-			if content != nil {
-				oaiMessages = append(oaiMessages, OaiMessage{Role: role, Content: content})
+				oaiMessages = append(oaiMessages, OaiMessage{Role: role, Content: fmt.Sprintf("%v", m.Content)})
 			}
 		}
 
@@ -246,9 +255,7 @@ func (c *Client) streamRequestInternal(ctx context.Context, req Request, onDelta
 		}
 	}
 
-	client := &http.Client{
-		Timeout: 60 * time.Second, // Reducido de 120s a 60s
-	}
+	client := &http.Client{}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return err
