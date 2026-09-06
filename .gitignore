@@ -81,3 +81,14 @@ cmd/wails/frontend/playwright-report/
 hola.txt
 ejemplo de gui/
 node_modules/
+
+# Specify, agents, and specs
+.specify/
+.agents/
+specs/
+.opencode/
+
+# Ignore all markdown except README
+*.md
+!README.md
+docs/*.md
