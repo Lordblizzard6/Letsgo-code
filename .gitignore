@@ -87,8 +87,13 @@ node_modules/
 .agents/
 specs/
 .opencode/
+AGENTS.md
 
-# Ignore all markdown except README
+# Ignore internal notes and temporary markdown, keep public documentation
 *.md
 !README.md
-docs/*.md
+!CONTRIBUTING.md
+!PROJECT_STATUS.md
+!PARITY_REPORT_DETAILED.md
+!docs/
+!docs/*.md
