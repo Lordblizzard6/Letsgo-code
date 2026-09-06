@@ -21,7 +21,7 @@
 
 ```bash
 # Install
-go install github.com/user/go-claude-code@latest
+go install github.com/Lordblizzard6/Letsgo-code@latest
 
 # Or download pre-built binary
 # (See releases page)
@@ -33,11 +33,11 @@ letsgo login
 letsgo chat
 ```
 
-## 🖥️ Desktop GUI (Wails)
+## 🖥️ Desktop GUI (Wails + React)
 
-The GUI provides a 1:1 surface for the CLI capabilities: chat, sessions, agent
-mode with approvals, git/MCP/plugins views, settings parity and usage tracking.
-It runs inside the same `letsgo` executable — no separate Wails binary.
+The GUI provides a rich, responsive desktop interface with real-time streaming,
+session management, interactive diff inspection, and comprehensive tool activity.
+It runs inside the same `letsgo` executable — no separate runtime needed.
 
 ```bash
 # Run the desktop GUI
@@ -75,28 +75,26 @@ Settings; save an API key to enable chat. API keys are stored in
 ## 🏗️ Building from Source
 
 ```bash
-git clone https://github.com/user/go-claude-code.git
-cd go-claude-code
-go build -o letsgo
-./letsgo --help
+git clone https://github.com/Lordblizzard6/Letsgo-code.git
+cd Letsgo-code
+go build -o letsgo.exe .
+./letsgo.exe --help
 ```
 
 ## ✨ Features
 
 ### Core Features
-- 💬 **Interactive Chat** - Full TUI with Bubble Tea + Syntax Highlighting
-- 📝 **Session Management** - Persistent sessions with SQLite
-- 🔧 **Git Integration** - Branch, commit, diff, review
-- 🤖 **AI Tools** - Bash, file edit, web search, LSP
-- 💰 **Cost Tracking** - Monitor API usage and costs
-- 🔌 **Plugin System** - Extensible architecture
-- 🎯 **MCP Support** - Model Context Protocol
-- 🌐 **Multi-Provider** - Anthropic, OpenAI, Groq, OpenRouter, Ollama
-- 📋 **Slash Commands** - /files, /diff, /search, /compact, etc
-- 🛡️ **Guardrails** - Safety checks for dangerous commands
-- 📋 **Plan Mode** - Structured planning before execution
-- 🤖 **Agents** - Spawn sub-agents for parallel tasks
-- 🧪 **Tested** - 23+ unit tests with CI/CD
+- 💬 **Modernized Interactive TUI** - Bubble Tea TUI with Glamour markdown rendering, real-time 2-tier status bar, and responsive header.
+- ⚡ **Floating Autocomplete** - Real-time popup suggestions for slash commands (`/`) and context files (`@`).
+- 🔍 **Git Review & Diff Inspector** - In-terminal staging (`+`/`-`), commit composer (`c`), and colored unified diff viewer (`Ctrl+D`, `/diff`, `/review`).
+- 🛠️ **Activity & Tool Inspector** - Live timeline of executed tools, outputs, and background tasks (`Ctrl+B`, `/tasks`, `/terminal`).
+- 🔄 **Dynamic Provider & Model Discovery** - Switch between Anthropic, OpenAI, Groq, OpenRouter, Gemini, and Ollama (`Ctrl+S`, `/model`, `/models`).
+- 📝 **Session & Project Management** - Persistent SQLite storage with interactive session picker (`/sessions`).
+- 🤖 **AI Agent Tools** - Bash, file editing with patches, web search, LSP, and sub-agents.
+- 💰 **Real-time Cost & Token Tracking** - Session cost tracking and token usage counters.
+- 🛡️ **Security Guardrails** - Interactive approval driver with session/project-scoped permission grants.
+- 📋 **Dual Execution Modes** - Seamless toggle between `BUILD` and `PLAN` modes with `Tab`.
+- 🔌 **Plugin & MCP Support** - Extensible architecture with Model Context Protocol.
 
 ### Commands (75 implemented)
 
@@ -275,8 +273,6 @@ letsgo thinkback "search query"
 | Tools | 69% | 31/45 tools |
 | Core Features | 100% | All essential features |
 
-See [detailed parity report](PARITY_REPORT_DETAILED.md)
-
 ## 🏛️ Architecture
 
 ```
@@ -326,15 +322,16 @@ MIT License - see [LICENSE](LICENSE) file
 
 ## 📚 Documentation
 
+- [Provider & Tools Compatibility Guide](docs/PROVIDER_TOOLS_GUIDE.md) - Provider capabilities and tool support
+- [Kairos Reference Architecture](docs/KAIROS_REFERENCE.md) - Kairos architecture & reference notes
 - [Project Status](PROJECT_STATUS.md) - Current state and roadmap
-- [Parity Report](PARITY_REPORT_DETAILED.md) - TypeScript vs Go comparison
 - [Contributing Guide](CONTRIBUTING.md) - How to contribute
 
 ---
 
 **Status:** ✅ Production Ready  
 **Version:** 0.1.0  
-**Maintained by:** [lordblizzard6](https://github.com/lordblizzard6)
+**Maintained by:** [Lordblizzard6](https://github.com/Lordblizzard6)
 
 
 ### Plugin support
